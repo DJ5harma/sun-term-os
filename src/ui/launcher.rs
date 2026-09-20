@@ -6,10 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
-use crate::app::{
-    AppState,
-    palette::{PALETTE_RESULT_ROWS, filtered_entries},
-};
+use crate::app::{AppState, palette::filtered_entries};
 
 use super::{
     interaction::{InteractionLayer, InteractionMap},
@@ -22,6 +19,16 @@ fn palette_block() -> Block<'static> {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme::AMBER))
         .style(Style::default().bg(theme::SURFACE))
+}
+
+/// List rows that fit below the query line (matches scroll clamping).
+pub fn list_visible_rows(launcher_area: Rect) -> usize {
+    let inner = palette_block().inner(launcher_area);
+    if inner.height < 2 {
+        return 1;
+    }
+    let chunks = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(inner);
+    chunks[1].height.max(1) as usize
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mut InteractionMap) {
@@ -52,6 +59,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
     let entries = filtered_entries(state);
     let selection = state.launcher_selection;
     let scroll_offset = state.launcher_scroll_offset;
+    let visible_rows = list_visible_rows(area);
 
     if entries.is_empty() {
         frame.render_widget(
@@ -64,7 +72,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
     let visible = entries
         .iter()
         .skip(scroll_offset)
-        .take(PALETTE_RESULT_ROWS)
+        .take(visible_rows)
         .enumerate()
         .map(|(row, entry)| {
             let index = scroll_offset + row;
@@ -87,15 +95,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
 
     let rows = Layout::vertical(std::iter::repeat_n(
         Constraint::Length(1),
-        PALETTE_RESULT_ROWS.min(entries.len()),
+        visible_rows.min(entries.len().saturating_sub(scroll_offset)),
     ))
     .split(chunks[1]);
     for (entry, row) in entries
         .iter()
         .skip(scroll_offset)
-        .take(PALETTE_RESULT_ROWS)
+        .take(visible_rows)
         .zip(rows.iter())
     {
-        interactions.register(InteractionLayer::Modal, *row, entry.action);
+        interactions.register(InteractionLayer::Modal, *row, entry.action.clone());
     }
 }

@@ -1,3 +1,4 @@
+use crate::actions::{Action, ProcessAction};
 use ratatui::{
     Frame,
     layout::Rect,
@@ -5,12 +6,9 @@ use ratatui::{
     widgets::{Paragraph, Row, Table},
 };
 
-use crate::{
-    actions::Action,
-    app::{
-        process_manager::matching_indices,
-        state::{AppState, Loadable, ProcessManagerState},
-    },
+use crate::app::{
+    process_manager::matching_indices,
+    state::{AppState, Loadable, ProcessManagerState},
 };
 
 use super::{
@@ -21,7 +19,7 @@ use super::{
 pub fn render(
     frame: &mut Frame,
     area: Rect,
-    state: &AppState,
+    _state: &AppState,
     window_id: u64,
     manager: &ProcessManagerState,
     interactions: &mut InteractionMap,
@@ -43,7 +41,7 @@ pub fn render(
     .split(area);
     frame.render_widget(Paragraph::new(help).style(theme::muted()), chunks[0]);
 
-    match &state.processes {
+    match &manager.listing {
         Loadable::Loading => {
             frame.render_widget(
                 Paragraph::new("Reading process table…").style(theme::muted()),
@@ -134,7 +132,7 @@ pub fn render(
                 interactions.register(
                     InteractionLayer::Content,
                     row_rect,
-                    Action::SelectProcessRow(window_id, list_index),
+                    Action::Process(ProcessAction::SelectProcessRow(window_id, list_index)),
                 );
             }
         }

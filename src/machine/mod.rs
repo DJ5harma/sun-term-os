@@ -3,24 +3,10 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use thiserror::Error;
 
+pub mod bundle;
 pub mod local;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MachineKind {
-    Local,
-    #[allow(dead_code)]
-    SshRemote,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineId(pub String);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineDescriptor {
-    pub id: MachineId,
-    pub name: String,
-    pub kind: MachineKind,
-}
+pub use bundle::Machine;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiskSnapshot {

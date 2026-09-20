@@ -17,10 +17,10 @@ use crate::{
     ui::{geometry::UiGeometry, interaction::InteractionMap},
 };
 
-pub use router::{FileManagerDialogMode, FocusContext, KeyDispatch, KeyInputContext, dispatch_key};
+pub use router::{KeyDispatch, dispatch_key};
 
-pub fn handle_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
-    dispatch_key(key, context)
+pub fn handle_key(key: KeyEvent, state: &AppState) -> KeyDispatch {
+    dispatch_key(key, state)
 }
 
 pub fn actions_for_mouse(

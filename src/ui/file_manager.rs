@@ -1,3 +1,4 @@
+use crate::actions::{Action, FileManagerAction};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -13,7 +14,6 @@ const SIZE_COL_WIDTH: u16 = 10;
 const MODIFIED_COL_WIDTH: u16 = 19;
 
 use crate::{
-    actions::Action,
     app::{
         file_manager::{DisplayRowKind, SortColumn, display_row_count, display_row_kind},
         state::{
@@ -156,17 +156,17 @@ fn register_pointer_targets(
         interactions.register(
             layer,
             Rect::new(layout.toolbar.x, layout.toolbar.y, 3, 1),
-            Action::FileManagerGoBack,
+            Action::FileManager(FileManagerAction::FileManagerGoBack),
         );
         interactions.register(
             layer,
             Rect::new(layout.toolbar.x + 3, layout.toolbar.y, 3, 1),
-            Action::FileManagerGoUp,
+            Action::FileManager(FileManagerAction::FileManagerGoUp),
         );
         interactions.register(
             layer,
             Rect::new(layout.toolbar.x + 6, layout.toolbar.y, 3, 1),
-            Action::FileManagerGoHome,
+            Action::FileManager(FileManagerAction::FileManagerGoHome),
         );
     }
 
@@ -180,7 +180,7 @@ fn register_pointer_targets(
             interactions.register(
                 InteractionLayer::Content,
                 *rect,
-                Action::SelectFileManagerPlace(window_id, index),
+                Action::FileManager(FileManagerAction::SelectFileManagerPlace(window_id, index)),
             );
         }
     }
@@ -188,12 +188,20 @@ fn register_pointer_targets(
     if layout.list_header.width > 20 {
         let cols = list_column_rects(layout.list_header);
         let layer = InteractionLayer::Content;
-        interactions.register(layer, cols[1], Action::FileManagerSetSort(SortColumn::Name));
-        interactions.register(layer, cols[2], Action::FileManagerSetSort(SortColumn::Size));
+        interactions.register(
+            layer,
+            cols[1],
+            Action::FileManager(FileManagerAction::FileManagerSetSort(SortColumn::Name)),
+        );
+        interactions.register(
+            layer,
+            cols[2],
+            Action::FileManager(FileManagerAction::FileManagerSetSort(SortColumn::Size)),
+        );
         interactions.register(
             layer,
             cols[3],
-            Action::FileManagerSetSort(SortColumn::Modified),
+            Action::FileManager(FileManagerAction::FileManagerSetSort(SortColumn::Modified)),
         );
     }
 
@@ -208,7 +216,10 @@ fn register_pointer_targets(
             interactions.register(
                 InteractionLayer::Content,
                 *rect,
-                Action::SelectFileManagerRow(window_id, start + offset),
+                Action::FileManager(FileManagerAction::SelectFileManagerRow(
+                    window_id,
+                    start + offset,
+                )),
             );
         }
     }

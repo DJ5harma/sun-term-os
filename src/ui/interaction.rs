@@ -14,7 +14,7 @@ pub enum InteractionLayer {
     Modal = 1,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Region {
     rect: Rect,
     layer: InteractionLayer,
@@ -50,20 +50,32 @@ impl InteractionMap {
             .rev()
             .filter(|region| region.rect.contains(position))
             .max_by_key(|region| region.layer)
-            .map(|region| region.action)
+            .map(|region| region.action.clone())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actions::{PaletteAction, ShellAction};
 
     #[test]
     fn modal_beats_content_on_overlap() {
         let mut map = InteractionMap::default();
         let rect = Rect::new(0, 0, 10, 1);
-        map.register(InteractionLayer::Content, rect, Action::Refresh);
-        map.register(InteractionLayer::Modal, rect, Action::ToggleLauncher);
-        assert_eq!(map.resolve(5, 0), Some(Action::ToggleLauncher));
+        map.register(
+            InteractionLayer::Content,
+            rect,
+            Action::Shell(ShellAction::Refresh),
+        );
+        map.register(
+            InteractionLayer::Modal,
+            rect,
+            Action::Palette(PaletteAction::ToggleLauncher),
+        );
+        assert_eq!(
+            map.resolve(5, 0),
+            Some(Action::Palette(PaletteAction::ToggleLauncher))
+        );
     }
 }

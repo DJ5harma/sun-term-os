@@ -2,7 +2,10 @@ use std::time::{Duration, Instant};
 
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
-use crate::{actions::Action, domain::WindowId};
+use crate::{
+    actions::{Action, FileManagerAction},
+    domain::WindowId,
+};
 
 const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -34,18 +37,24 @@ impl DoubleClickState {
         }
 
         let follow_up = match primary {
-            Action::SelectFileManagerRow(window_id, index) => Some((
-                window_id,
-                ClickPane::List,
-                index,
-                Action::SelectFileManagerRow(window_id, index),
-            )),
-            Action::SelectFileManagerPlace(window_id, index) => Some((
-                window_id,
-                ClickPane::Places,
-                index,
-                Action::SelectFileManagerPlace(window_id, index),
-            )),
+            Action::FileManager(FileManagerAction::SelectFileManagerRow(window_id, index)) => {
+                Some((
+                    window_id,
+                    ClickPane::List,
+                    index,
+                    Action::FileManager(FileManagerAction::SelectFileManagerRow(window_id, index)),
+                ))
+            }
+            Action::FileManager(FileManagerAction::SelectFileManagerPlace(window_id, index)) => {
+                Some((
+                    window_id,
+                    ClickPane::Places,
+                    index,
+                    Action::FileManager(FileManagerAction::SelectFileManagerPlace(
+                        window_id, index,
+                    )),
+                ))
+            }
             _ => None,
         };
 
@@ -59,7 +68,10 @@ impl DoubleClickState {
             };
             if self.is_double_click(target) {
                 self.last = None;
-                return vec![select_action, Action::OpenSelectedEntry];
+                return vec![
+                    select_action,
+                    Action::FileManager(FileManagerAction::OpenSelectedEntry),
+                ];
             }
             self.last = Some((target, Instant::now()));
             return vec![primary];
@@ -95,17 +107,19 @@ mod tests {
     fn second_click_on_same_row_opens_entry() {
         let mut state = DoubleClickState::default();
         let mouse = left_down(10, 5);
-        let select = Action::SelectFileManagerRow(1, 3);
+        let select = Action::FileManager(FileManagerAction::SelectFileManagerRow(1, 3));
 
         assert_eq!(
-            state.actions_after_primary(&mouse, select),
-            vec![Action::SelectFileManagerRow(1, 3)]
+            state.actions_after_primary(&mouse, select.clone()),
+            vec![Action::FileManager(
+                FileManagerAction::SelectFileManagerRow(1, 3)
+            )]
         );
         assert_eq!(
             state.actions_after_primary(&mouse, select),
             vec![
-                Action::SelectFileManagerRow(1, 3),
-                Action::OpenSelectedEntry,
+                Action::FileManager(FileManagerAction::SelectFileManagerRow(1, 3)),
+                Action::FileManager(FileManagerAction::OpenSelectedEntry),
             ]
         );
     }
@@ -113,9 +127,19 @@ mod tests {
     #[test]
     fn different_row_resets_double_click() {
         let mut state = DoubleClickState::default();
-        state.actions_after_primary(&left_down(1, 1), Action::SelectFileManagerRow(1, 0));
-        let actions =
-            state.actions_after_primary(&left_down(2, 1), Action::SelectFileManagerRow(1, 1));
-        assert_eq!(actions, vec![Action::SelectFileManagerRow(1, 1)]);
+        state.actions_after_primary(
+            &left_down(1, 1),
+            Action::FileManager(FileManagerAction::SelectFileManagerRow(1, 0)),
+        );
+        let actions = state.actions_after_primary(
+            &left_down(2, 1),
+            Action::FileManager(FileManagerAction::SelectFileManagerRow(1, 1)),
+        );
+        assert_eq!(
+            actions,
+            vec![Action::FileManager(
+                FileManagerAction::SelectFileManagerRow(1, 1)
+            )]
+        );
     }
 }

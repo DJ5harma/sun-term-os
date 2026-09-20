@@ -8,7 +8,8 @@ use ratatui::{
 
 use crate::{
     app::{AppState, Loadable},
-    domain::{ApplicationKind, WindowState},
+    apps,
+    domain::WindowState,
     input::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT},
 };
 
@@ -16,15 +17,6 @@ use super::{
     geometry::{BottomBarGeometry, window_tab_cells},
     theme,
 };
-
-fn short_app_title(kind: ApplicationKind) -> &'static str {
-    match kind {
-        ApplicationKind::Terminal => "Term",
-        ApplicationKind::FileManager => "Files",
-        ApplicationKind::SystemInfo => "Sys",
-        ApplicationKind::Processes => "Proc",
-    }
-}
 
 pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
     frame.render_widget(
@@ -53,14 +45,14 @@ pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
             let slot = index + 1;
             let minimized = window.state == WindowState::Minimized;
             let label = if slot <= 9 {
-                let title = short_app_title(window.application);
+                let title = apps::short_title(window.application);
                 if minimized {
                     format!("{slot}:_{title}")
                 } else {
                     format!("{slot}:{title}")
                 }
             } else {
-                let title = window.application.title();
+                let title = apps::title(window.application);
                 if minimized {
                     format!("_{title}")
                 } else {

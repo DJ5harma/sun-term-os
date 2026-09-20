@@ -4,9 +4,11 @@ pub mod interaction;
 mod bottom_bar;
 mod desktop;
 pub mod file_manager;
-mod launcher;
-mod processes;
-mod theme;
+pub(crate) mod launcher;
+pub(crate) mod processes;
+pub mod system_info;
+pub mod terminal;
+pub(crate) mod theme;
 mod top_bar;
 pub(crate) mod windows;
 

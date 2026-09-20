@@ -4,10 +4,7 @@ use std::path::PathBuf;
 use crate::{
     app::file_manager::standard_places,
     domain::{Window, WindowId, WindowState, Workspace},
-    events::Event,
-    machine::{
-        DirectoryListing, MachineDescriptor, MachineId, MachineKind, ProcessInfo, SystemSnapshot,
-    },
+    machine::{DirectoryListing, ProcessInfo, SystemSnapshot},
 };
 
 pub use super::file_manager::{CreateKind, FileManagerFocus, FileSort, Place, SortColumn};
@@ -88,24 +85,26 @@ pub enum TerminalStatus {
 
 #[derive(Debug)]
 pub struct AppState {
-    pub machine: MachineDescriptor,
     pub workspaces: Vec<Workspace>,
     pub active_workspace: usize,
     pub launcher_open: bool,
     pub launcher_query: String,
     pub launcher_selection: usize,
     pub launcher_scroll_offset: usize,
+    /// Updated each frame from launcher geometry (see `sync_palette_selection`).
+    pub launcher_visible_rows: usize,
     pub next_window_id: WindowId,
     pub terminal_contents: HashMap<WindowId, String>,
     pub terminal_statuses: HashMap<WindowId, TerminalStatus>,
     pub file_managers: HashMap<WindowId, FileManagerState>,
     pub process_managers: HashMap<WindowId, ProcessManagerState>,
+    pub system_info_views: HashMap<WindowId, Loadable<SystemSnapshot>>,
     pub system: Loadable<SystemSnapshot>,
     pub processes: Loadable<Vec<ProcessInfo>>,
     pub status: String,
     pub input_debug: bool,
     pub input_debug_line: String,
-    /// After [Action::BeginWindowPick], next digit 1–9 focuses a window.
+    /// After window-pick chord begins, next digit 1–9 focuses a window.
     pub window_pick_mode: bool,
     pub should_quit: bool,
 }
@@ -125,11 +124,6 @@ impl AppState {
             format!("F1–F{workspace_count} workspaces")
         };
         Self {
-            machine: MachineDescriptor {
-                id: MachineId("local".to_owned()),
-                name: "This machine".to_owned(),
-                kind: MachineKind::Local,
-            },
             workspaces: (0..workspace_count)
                 .map(|id| Workspace {
                     id,
@@ -142,11 +136,13 @@ impl AppState {
             launcher_query: String::new(),
             launcher_selection: 0,
             launcher_scroll_offset: 0,
+            launcher_visible_rows: 8,
             next_window_id: 1,
             terminal_contents: HashMap::new(),
             terminal_statuses: HashMap::new(),
             file_managers: HashMap::new(),
             process_managers: HashMap::new(),
+            system_info_views: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
             status: format!(
@@ -184,44 +180,10 @@ impl AppState {
             .find(|window| window.id == focused)
     }
 
-    pub(crate) fn apply_event(&mut self, event: Event) {
-        match event {
-            Event::SystemInfoLoaded(result) => {
-                self.system = match result {
-                    Ok(snapshot) => Loadable::Ready(snapshot),
-                    Err(error) => Loadable::Failed(error),
-                };
-            }
-            Event::ProcessesLoaded(result) => {
-                self.processes = match result {
-                    Ok(processes) => Loadable::Ready(processes),
-                    Err(error) => Loadable::Failed(error),
-                };
-                if let Loadable::Ready(processes) = &self.processes {
-                    for manager in self.process_managers.values_mut() {
-                        let count =
-                            super::process_manager::matching_indices(processes, &manager.filter)
-                                .len();
-                        manager.clamp_selection(count);
-                    }
-                }
-            }
-            Event::DirectoryLoaded(window_id, result) => {
-                if let Some(manager) = self.file_managers.get_mut(&window_id) {
-                    manager.listing = match result {
-                        Ok(listing) => {
-                            manager.current_path = listing.path.clone();
-                            Loadable::Ready(super::file_manager::apply_sorted_listing(
-                                listing,
-                                manager.sort,
-                            ))
-                        }
-                        Err(error) => Loadable::Failed(error),
-                    };
-                    manager.clamp_selection();
-                }
-            }
-            _ => {}
+    pub fn host_label(&self) -> &str {
+        match &self.system {
+            Loadable::Ready(snapshot) => snapshot.hostname.as_str(),
+            _ => "This machine",
         }
     }
 
@@ -299,5 +261,28 @@ impl AppState {
 
     pub(crate) fn remove_process_manager(&mut self, window_id: WindowId) {
         self.process_managers.remove(&window_id);
+    }
+
+    pub fn system_info_view(&self, window_id: WindowId) -> Option<&Loadable<SystemSnapshot>> {
+        self.system_info_views.get(&window_id)
+    }
+
+    pub(crate) fn init_system_info_view(&mut self, window_id: WindowId) {
+        self.system_info_views.insert(window_id, Loadable::Loading);
+    }
+
+    pub(crate) fn remove_system_info_view(&mut self, window_id: WindowId) {
+        self.system_info_views.remove(&window_id);
+    }
+
+    pub(crate) fn mark_capability_refresh_loading(&mut self) {
+        self.system = Loadable::Loading;
+        self.processes = Loadable::Loading;
+        for view in self.system_info_views.values_mut() {
+            *view = Loadable::Loading;
+        }
+        for manager in self.process_managers.values_mut() {
+            manager.listing = Loadable::Loading;
+        }
     }
 }
