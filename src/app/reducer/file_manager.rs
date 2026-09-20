@@ -160,6 +160,15 @@ pub(super) fn reduce(state: &mut AppState, action: FileManagerAction) -> Vec<Eff
                 state.status = "Open a file manager window first".to_owned();
             }
         }
+        FileManagerAction::FileManagerOpenInViewer => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager(window_id)
+                && let Some(path) = selected_entry_path(manager)
+            {
+                return super::text_viewer::open_path_effects(state, path);
+            }
+            state.status = "Select a file to view".to_owned();
+        }
         FileManagerAction::FileManagerOpenWithSystem => {
             if let Some(window_id) = resolve_file_manager_window(state)
                 && let Some(manager) = state.file_manager(window_id)

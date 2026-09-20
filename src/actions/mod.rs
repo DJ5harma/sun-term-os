@@ -1,4 +1,5 @@
 use crate::domain::{ApplicationKind, WindowId};
+use crate::machine::id::MachineId;
 use crate::machine::{DirectoryListing, ProcessInfo, SystemSnapshot};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -9,6 +10,10 @@ pub enum Action {
     Process(ProcessAction),
     Terminal(TerminalAction),
     Settings(SettingsAction),
+    Machines(MachinesAction),
+    Launcher(LauncherAction),
+    TextViewer(TextViewerAction),
+    Services(ServicesAction),
     Async(AsyncAction),
 }
 
@@ -65,6 +70,7 @@ pub enum FileManagerAction {
     FileManagerDialogCommit,
     FileManagerBeginGoToPath,
     FileManagerOpenWithSystem,
+    FileManagerOpenInViewer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,7 +104,63 @@ pub enum SettingsAction {
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub enum AsyncAction {
-    SystemInfoReady(Result<SystemSnapshot, String>),
-    ProcessesReady(Result<Vec<ProcessInfo>, String>),
+    SystemInfoReady(MachineId, Result<SystemSnapshot, String>),
+    ProcessesReady(MachineId, Result<Vec<ProcessInfo>, String>),
     DirectoryReady(WindowId, Result<DirectoryListing, String>),
+    LauncherReady(
+        MachineId,
+        Result<Vec<crate::machine::applications::ApplicationEntry>, String>,
+    ),
+    TextFileReady(WindowId, Result<String, String>),
+    ServicesReady(
+        MachineId,
+        Result<Vec<crate::machine::services::ServiceInfo>, String>,
+    ),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachinesAction {
+    MoveSelection(i32),
+    SetActiveMachine,
+    ConnectSelected,
+    DisconnectSelected,
+    BeginAddProfile,
+    BeginEditProfile,
+    DeleteSelected,
+    AcceptHostKey,
+    RejectHostKey,
+    DialogPush(char),
+    DialogBackspace,
+    DialogCommit,
+    CancelDialog,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LauncherAction {
+    MoveSelection(i32),
+    LauncherPageScroll(i32),
+    LauncherFilterBegin,
+    LauncherFilterPush(char),
+    LauncherFilterBackspace,
+    LauncherFilterEnd,
+    LaunchSelected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextViewerAction {
+    Scroll(i32),
+    PageScroll(i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServicesAction {
+    MoveSelection(i32),
+    ServicesPageScroll(i32),
+    ServicesFilterBegin,
+    ServicesFilterPush(char),
+    ServicesFilterBackspace,
+    ServicesFilterEnd,
+    ServiceStartSelected,
+    ServiceStopSelected,
+    ServiceRestartSelected,
 }

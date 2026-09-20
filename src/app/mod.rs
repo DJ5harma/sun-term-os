@@ -1,13 +1,17 @@
 pub(crate) mod effects;
 pub mod file_manager;
+pub mod launcher;
+pub mod machines;
 pub mod palette;
 pub mod process_manager;
 pub(crate) mod reducer;
 pub mod runtime;
+pub mod services_manager;
 pub(crate) mod session;
 pub mod settings;
 pub mod state;
 pub mod terminal_view;
+pub mod text_viewer;
 pub(crate) mod theme_presets;
 
 pub use crate::domain::{ApplicationKind, Window, WindowState};
@@ -17,7 +21,7 @@ pub use state::{AppState, FileManagerFocus, Loadable, SortColumn, TerminalStatus
 use anyhow::Result;
 use ratatui::DefaultTerminal;
 
-use crate::{config::Config, machine::Machine};
+use crate::config::Config;
 
 /// Application entry: owns runtime loop and effect execution.
 pub struct App {
@@ -25,9 +29,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: Config, machine: Machine) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
-            runtime: AppRuntime::new(config, machine),
+            runtime: AppRuntime::new(config),
         }
     }
 

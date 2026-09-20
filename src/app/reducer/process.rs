@@ -86,13 +86,13 @@ pub(super) fn reduce(state: &mut AppState, action: ProcessAction) -> Vec<Effect>
                         manager.sort,
                         manager.selected_index,
                     )
-                    .map(|process| (process.pid, process.name.clone()))
+                    .map(|process| (window_id, process.pid, process.name.clone()))
                 })
             });
-            if let Some((pid, name)) = kill {
+            if let Some((window_id, pid, name)) = kill {
                 state.status = format!("Sending SIGTERM to {name} ({pid})");
                 return vec![Effect::Process(crate::app::effects::ProcessEffect::Kill(
-                    pid,
+                    window_id, pid,
                 ))];
             }
             state.status = "No process selected".to_owned();
@@ -109,13 +109,13 @@ pub(super) fn reduce(state: &mut AppState, action: ProcessAction) -> Vec<Effect>
                         manager.sort,
                         manager.selected_index,
                     )
-                    .map(|process| (process.pid, process.name.clone()))
+                    .map(|process| (window_id, process.pid, process.name.clone()))
                 })
             });
-            if let Some((pid, name)) = kill {
+            if let Some((window_id, pid, name)) = kill {
                 state.status = format!("Sending SIGKILL to {name} ({pid})");
                 return vec![Effect::Process(
-                    crate::app::effects::ProcessEffect::KillForce(pid),
+                    crate::app::effects::ProcessEffect::KillForce(window_id, pid),
                 )];
             }
             state.status = "No process selected".to_owned();

@@ -50,7 +50,10 @@ fn refresh_returns_an_effect_and_enters_loading_state() {
     let effects = reduce(&mut state, Action::Shell(ShellAction::Refresh));
 
     assert_eq!(state.status, "Refreshing local capabilities…");
-    assert_eq!(state.system, Loadable::Loading);
+    assert_eq!(
+        state.system_for(&crate::machine::MachineId::Local),
+        Loadable::Loading
+    );
     assert_eq!(effects, vec![Effect::RefreshCapabilities]);
 }
 

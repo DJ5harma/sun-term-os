@@ -50,6 +50,30 @@ impl FilesystemProvider for LocalFilesystemProvider {
             .await
             .map_err(|error| CapabilityError::Failed(error.to_string()))?
     }
+
+    async fn read_text_file(&self, path: &Path, max_bytes: u64) -> Result<String, CapabilityError> {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || read_text_file_blocking(&path, max_bytes))
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+}
+
+fn read_text_file_blocking(path: &Path, max_bytes: u64) -> Result<String, CapabilityError> {
+    let metadata =
+        std::fs::metadata(path).map_err(|error| CapabilityError::Failed(error.to_string()))?;
+    if metadata.len() > max_bytes {
+        return Err(CapabilityError::Failed(format!(
+            "file exceeds {max_bytes} byte limit"
+        )));
+    }
+    let bytes = std::fs::read(path).map_err(|error| CapabilityError::Failed(error.to_string()))?;
+    if bytes.contains(&0) {
+        return Err(CapabilityError::Failed(
+            "binary file cannot be viewed".into(),
+        ));
+    }
+    String::from_utf8(bytes).map_err(|_| CapabilityError::Failed("not valid UTF-8".into()))
 }
 
 fn remove_path_blocking(path: &Path) -> Result<RemoveOutcome, CapabilityError> {

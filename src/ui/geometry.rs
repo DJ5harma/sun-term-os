@@ -210,12 +210,14 @@ mod tests {
     #[test]
     fn shell_action_matches_bottom_bar_cells() {
         use crate::domain::{ApplicationKind, Window, WindowState};
+        use crate::machine::MachineId;
         let mut state = AppState::default();
         let workspace = &mut state.workspaces[0];
         workspace.windows.push(Window {
             id: 1,
             application: ApplicationKind::Terminal,
             state: WindowState::Normal,
+            machine_id: MachineId::Local,
         });
         workspace.focused_window = Some(1);
         let geometry = calculate(Rect::new(0, 0, 100, 24), &state);

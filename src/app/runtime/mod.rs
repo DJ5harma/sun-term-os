@@ -4,7 +4,8 @@ mod watches;
 
 pub use effects::EffectExecutor;
 pub use sync::{
-    sync_file_manager_visible_rows, sync_palette_selection, sync_process_manager_visible_rows,
+    sync_file_manager_visible_rows, sync_launcher_visible_rows, sync_palette_selection,
+    sync_process_manager_visible_rows, sync_services_visible_rows, sync_text_viewer_visible_rows,
 };
 
 use std::{thread, time::Duration};
@@ -26,7 +27,7 @@ use crate::{
     config::Config,
     events::Event,
     input,
-    machine::Machine,
+    machine::MachineRegistry,
     terminal::{TerminalEvent, TerminalManager},
     ui,
 };
@@ -43,7 +44,7 @@ pub struct AppRuntime {
 }
 
 impl AppRuntime {
-    pub fn new(config: Config, machine: Machine) -> Self {
+    pub fn new(config: Config) -> Self {
         let config = config.normalized();
         let refresh_interval_secs = config.refresh_interval_secs;
         let mut state = AppState::new(config.clone());
@@ -57,7 +58,7 @@ impl AppRuntime {
             mouse_click: input::DoubleClickState::default(),
             interactions: ui::interaction::InteractionMap::default(),
             executor: EffectExecutor {
-                machine,
+                registry: MachineRegistry::new(),
                 terminal_manager: TerminalManager::default(),
                 directory_watches: watches::DirectoryWatchHub::new(),
             },
@@ -82,6 +83,9 @@ impl AppRuntime {
             );
             sync_file_manager_visible_rows(&mut self.state, &self.geometry);
             sync_process_manager_visible_rows(&mut self.state, &self.geometry);
+            sync_launcher_visible_rows(&mut self.state, &self.geometry);
+            sync_services_visible_rows(&mut self.state, &self.geometry);
+            sync_text_viewer_visible_rows(&mut self.state, &self.geometry);
             sync_palette_selection(&mut self.state, &self.geometry);
             self.state.terminal_body_rows =
                 self.geometry.desktop.height.saturating_sub(4).max(1) as usize;

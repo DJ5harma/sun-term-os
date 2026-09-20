@@ -242,6 +242,13 @@ fn main_key(key: KeyEvent) -> Option<Action> {
             FileManagerAction::FileManagerOpenInTerminal,
         )),
         KeyEvent {
+            code: KeyCode::Char('e'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::FileManager(
+            FileManagerAction::FileManagerOpenInViewer,
+        )),
+        KeyEvent {
             code: KeyCode::Char('O'),
             modifiers: KeyModifiers::SHIFT,
             ..
@@ -375,7 +382,12 @@ pub async fn run_effect(
             let directory = state
                 .file_manager(window_id)
                 .map(|manager| manager.current_path.clone());
-            let result = executor.machine.filesystem.remove_path(&path).await;
+            let result = match executor.machine_for_window(state, window_id) {
+                Some(machine) => machine.filesystem.remove_path(&path).await,
+                None => Err(crate::machine::CapabilityError::Failed(
+                    machine_unavailable_message(state, window_id),
+                )),
+            };
             if let Some(manager) = state.file_manager_mut(window_id) {
                 manager.dialog = FileManagerDialog::None;
             }
@@ -401,9 +413,14 @@ pub async fn run_effect(
             let directory = state
                 .file_manager(window_id)
                 .map(|manager| manager.current_path.clone());
-            let result = match kind {
-                CreateKind::File => executor.machine.filesystem.create_file(&path).await,
-                CreateKind::Directory => executor.machine.filesystem.create_directory(&path).await,
+            let result = match executor.machine_for_window(state, window_id) {
+                Some(machine) => match kind {
+                    CreateKind::File => machine.filesystem.create_file(&path).await,
+                    CreateKind::Directory => machine.filesystem.create_directory(&path).await,
+                },
+                None => Err(crate::machine::CapabilityError::Failed(
+                    machine_unavailable_message(state, window_id),
+                )),
             };
             if let Some(manager) = state.file_manager_mut(window_id) {
                 manager.dialog = FileManagerDialog::None;
@@ -431,7 +448,12 @@ pub async fn run_effect(
             let directory = state
                 .file_manager(window_id)
                 .map(|manager| manager.current_path.clone());
-            let result = executor.machine.filesystem.rename_path(&from, &to).await;
+            let result = match executor.machine_for_window(state, window_id) {
+                Some(machine) => machine.filesystem.rename_path(&from, &to).await,
+                None => Err(crate::machine::CapabilityError::Failed(
+                    machine_unavailable_message(state, window_id),
+                )),
+            };
             if let Some(manager) = state.file_manager_mut(window_id) {
                 manager.dialog = FileManagerDialog::None;
             }
@@ -455,5 +477,15 @@ pub async fn run_effect(
                 }
             }
         }
+    }
+}
+
+fn machine_unavailable_message(state: &AppState, window_id: WindowId) -> String {
+    let machine_id = state
+        .window_machine_id(window_id)
+        .unwrap_or_else(|| state.active_machine_id.clone());
+    match machine_id {
+        crate::machine::MachineId::Local => "local machine unavailable".to_owned(),
+        crate::machine::MachineId::Named(name) => format!("not connected to {name}"),
     }
 }

@@ -34,10 +34,14 @@ pub fn render(frame: &mut Frame, layout: TopBarGeometry, state: &AppState) {
         };
         frame.render_widget(Paragraph::new(line).alignment(Alignment::Center), cell);
     }
+    let machine_label = state
+        .focused_window()
+        .map(|window| state.host_label_for(&window.machine_id))
+        .unwrap_or_else(|| state.host_label());
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("● ", Style::default().fg(theme::green())),
-            Span::styled(state.host_label(), Style::default().fg(theme::text())),
+            Span::styled(machine_label, Style::default().fg(theme::text())),
         ]))
         .alignment(Alignment::Right),
         layout.machine,

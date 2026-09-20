@@ -28,7 +28,7 @@ fn window_title(window: &Window, state: &AppState) -> String {
         WindowState::Maximized => " [max]",
         WindowState::Normal => "",
     };
-    let host = state.host_label();
+    let host = state.host_label_for(&window.machine_id);
     let raw = format!(" {app}{extra}{state_tag}  ·  {host} ");
     truncate_title(raw, 64)
 }

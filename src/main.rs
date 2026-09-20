@@ -21,7 +21,6 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use machine::Machine;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 #[tokio::main]
@@ -37,7 +36,7 @@ async fn main() -> Result<()> {
 async fn run(config: crate::config::Config) -> Result<()> {
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
-    let app = App::new(config, Machine::local());
+    let app = App::new(config);
     app.run(&mut terminal).await
 }
 

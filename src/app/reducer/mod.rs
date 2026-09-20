@@ -1,10 +1,14 @@
 mod async_completion;
 mod file_manager;
+mod launcher;
+mod machines;
 mod palette;
 mod process;
+mod services;
 mod settings;
 mod shell;
 mod terminal;
+mod text_viewer;
 
 use crate::{actions::Action, app::AppState};
 
@@ -20,6 +24,10 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::Process(action) => process::reduce(state, action),
         Action::Terminal(action) => terminal::reduce(state, action),
         Action::Settings(action) => settings::reduce(state, action),
+        Action::Machines(action) => machines::reduce(state, action),
+        Action::Launcher(action) => launcher::reduce(state, action),
+        Action::TextViewer(action) => text_viewer::reduce(state, action),
+        Action::Services(action) => services::reduce(state, action),
         Action::Async(action) => async_completion::reduce(state, action),
     }
 }

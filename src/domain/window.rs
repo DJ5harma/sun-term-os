@@ -1,6 +1,7 @@
 pub type WindowId = u64;
 
 use super::ApplicationKind;
+use crate::machine::MachineId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowState {
@@ -14,4 +15,5 @@ pub struct Window {
     pub id: WindowId,
     pub application: ApplicationKind,
     pub state: WindowState,
+    pub machine_id: MachineId,
 }

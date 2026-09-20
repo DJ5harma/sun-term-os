@@ -1,46 +1,57 @@
 use crate::{
     actions::AsyncAction,
     app::{AppState, Loadable},
+    machine::MachineId,
 };
 
 use super::Effect;
 
 pub(super) fn reduce(state: &mut AppState, action: AsyncAction) -> Vec<Effect> {
     match action {
-        AsyncAction::SystemInfoReady(result) => {
+        AsyncAction::SystemInfoReady(machine_id, result) => {
             let listing = match result {
                 Ok(snapshot) => Loadable::Ready(snapshot),
                 Err(error) => Loadable::Failed(error),
             };
-            state.system = listing.clone();
+            state.systems.insert(machine_id.clone(), listing.clone());
             if matches!(&listing, Loadable::Ready(_)) {
                 state.capabilities_refreshed_at = Some(current_unix_secs());
             }
-            for view in state.system_info_views.values_mut() {
-                *view = listing.clone();
+            let targets =
+                matching_windows(state, &machine_id, state.system_info_views.keys().copied());
+            for window_id in targets {
+                if let Some(view) = state.system_info_views.get_mut(&window_id) {
+                    *view = listing.clone();
+                }
             }
         }
-        AsyncAction::ProcessesReady(result) => {
+        AsyncAction::ProcessesReady(machine_id, result) => {
             let listing = match result {
                 Ok(processes) => Loadable::Ready(processes),
                 Err(error) => Loadable::Failed(error),
             };
-            state.processes = listing.clone();
+            state
+                .process_lists
+                .insert(machine_id.clone(), listing.clone());
             let refreshed = matches!(&listing, Loadable::Ready(_));
             let refreshed_at = refreshed.then_some(current_unix_secs());
-            for manager in state.process_managers.values_mut() {
-                manager.listing = listing.clone();
-                if refreshed_at.is_some() {
-                    manager.last_refreshed_at = refreshed_at;
-                }
-                if let Loadable::Ready(processes) = &manager.listing {
-                    let count = crate::app::process_manager::matching_indices(
-                        processes,
-                        &manager.filter,
-                        manager.sort,
-                    )
-                    .len();
-                    manager.clamp_selection(count);
+            let targets =
+                matching_windows(state, &machine_id, state.process_managers.keys().copied());
+            for window_id in targets {
+                if let Some(manager) = state.process_managers.get_mut(&window_id) {
+                    manager.listing = listing.clone();
+                    if refreshed_at.is_some() {
+                        manager.last_refreshed_at = refreshed_at;
+                    }
+                    if let Loadable::Ready(processes) = &manager.listing {
+                        let count = crate::app::process_manager::matching_indices(
+                            processes,
+                            &manager.filter,
+                            manager.sort,
+                        )
+                        .len();
+                        manager.clamp_selection(count);
+                    }
                 }
             }
         }
@@ -59,8 +70,53 @@ pub(super) fn reduce(state: &mut AppState, action: AsyncAction) -> Vec<Effect> {
                 manager.clamp_selection();
             }
         }
+        AsyncAction::LauncherReady(machine_id, result) => {
+            let listing = match result {
+                Ok(entries) => Loadable::Ready(entries),
+                Err(error) => Loadable::Failed(error),
+            };
+            let targets =
+                matching_windows(state, &machine_id, state.launcher_views.keys().copied());
+            for window_id in targets {
+                if let Some(view) = state.launcher_views.get_mut(&window_id) {
+                    view.listing = listing.clone();
+                }
+            }
+        }
+        AsyncAction::TextFileReady(window_id, result) => {
+            if let Some(view) = state.text_viewers.get_mut(&window_id) {
+                view.content = match result {
+                    Ok(text) => Loadable::Ready(text),
+                    Err(error) => Loadable::Failed(error),
+                };
+            }
+        }
+        AsyncAction::ServicesReady(machine_id, result) => {
+            let listing = match result {
+                Ok(services) => Loadable::Ready(services),
+                Err(error) => Loadable::Failed(error),
+            };
+            let targets =
+                matching_windows(state, &machine_id, state.services_views.keys().copied());
+            for window_id in targets {
+                if let Some(view) = state.services_views.get_mut(&window_id) {
+                    view.listing = listing.clone();
+                }
+            }
+        }
     }
     Vec::new()
+}
+
+fn matching_windows(
+    state: &AppState,
+    machine_id: &MachineId,
+    window_ids: impl IntoIterator<Item = u64>,
+) -> Vec<u64> {
+    window_ids
+        .into_iter()
+        .filter(|window_id| state.window_machine_id(*window_id).as_ref() == Some(machine_id))
+        .collect()
 }
 
 fn current_unix_secs() -> u64 {

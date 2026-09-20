@@ -3,10 +3,20 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use thiserror::Error;
 
+pub mod applications;
 pub mod bundle;
+pub mod id;
+pub mod known_hosts;
 pub mod local;
+pub mod registry;
+pub mod remote;
+pub mod services;
 
+pub use applications::ApplicationProvider;
 pub use bundle::Machine;
+pub use id::MachineId;
+pub use registry::{ConnectionState, MachineRegistry};
+pub use services::ServiceProvider;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiskSnapshot {
@@ -43,7 +53,6 @@ pub struct ProcessInfo {
 #[derive(Debug, Error)]
 pub enum CapabilityError {
     #[error("capability unavailable: {0}")]
-    #[allow(dead_code)]
     Unavailable(String),
     #[error("capability failed: {0}")]
     Failed(String),
@@ -100,6 +109,8 @@ pub trait FilesystemProvider: Send + Sync {
     async fn create_file(&self, path: &Path) -> Result<(), CapabilityError>;
 
     async fn create_directory(&self, path: &Path) -> Result<(), CapabilityError>;
+
+    async fn read_text_file(&self, path: &Path, max_bytes: u64) -> Result<String, CapabilityError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

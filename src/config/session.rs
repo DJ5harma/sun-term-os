@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::domain::ApplicationKind;
+use crate::machine::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionConfig {
@@ -35,6 +36,8 @@ pub struct SessionFile {
     #[serde(default)]
     pub active_workspace: usize,
     #[serde(default)]
+    pub active_machine_id: Option<String>,
+    #[serde(default)]
     pub workspaces: Vec<SessionWorkspace>,
 }
 
@@ -48,7 +51,25 @@ pub struct SessionWorkspace {
 pub struct SessionWindow {
     pub application: ApplicationKind,
     #[serde(default)]
+    pub machine_id: Option<String>,
+    #[serde(default)]
     pub file_manager_path: Option<PathBuf>,
+    #[serde(default)]
+    pub text_viewer_path: Option<PathBuf>,
+}
+
+pub fn encode_machine_id(machine_id: &MachineId) -> String {
+    match machine_id {
+        MachineId::Local => "local".to_owned(),
+        MachineId::Named(name) => name.clone(),
+    }
+}
+
+pub fn decode_machine_id(value: Option<&str>) -> MachineId {
+    match value {
+        None | Some("local") => MachineId::Local,
+        Some(name) => MachineId::Named(name.to_owned()),
+    }
 }
 
 pub fn load_session(path: &Path) -> Result<SessionFile> {
@@ -67,4 +88,19 @@ pub fn save_session(path: &Path, session: &SessionFile) -> Result<()> {
     }
     let text = toml::to_string_pretty(session).context("serialize session")?;
     std::fs::write(path, text).with_context(|| format!("write session {}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_id_round_trip() {
+        assert_eq!(encode_machine_id(&MachineId::Local), "local");
+        assert_eq!(decode_machine_id(Some("local")), MachineId::Local);
+        assert_eq!(decode_machine_id(None), MachineId::Local);
+        let named = MachineId::Named("prod".to_owned());
+        assert_eq!(encode_machine_id(&named), "prod");
+        assert_eq!(decode_machine_id(Some("prod")), named);
+    }
 }

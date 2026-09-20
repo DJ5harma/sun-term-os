@@ -186,17 +186,20 @@ mod tests {
 
     fn state_with_two_windows() -> AppState {
         use crate::domain::{Window, WindowState};
+        use crate::machine::MachineId;
         let mut state = AppState::default();
         let workspace = &mut state.workspaces[0];
         workspace.windows.push(Window {
             id: 1,
             application: ApplicationKind::Terminal,
             state: WindowState::Normal,
+            machine_id: MachineId::Local,
         });
         workspace.windows.push(Window {
             id: 2,
             application: ApplicationKind::FileManager,
             state: WindowState::Normal,
+            machine_id: MachineId::Local,
         });
         workspace.focused_window = Some(1);
         state

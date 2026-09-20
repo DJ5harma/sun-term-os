@@ -30,7 +30,11 @@ pub const APP: BuiltInApp = BuiltInApp {
 };
 
 pub fn on_open(state: &mut AppState, window_id: WindowId) -> Vec<Effect> {
-    state.init_process_manager(window_id);
+    let machine_id = state
+        .window_machine_id(window_id)
+        .unwrap_or(crate::machine::MachineId::Local);
+    let listing = state.processes_for(&machine_id);
+    state.init_process_manager(window_id, listing);
     Vec::new()
 }
 
@@ -174,15 +178,25 @@ pub async fn run_effect(
 ) {
     use crate::app::effects::ProcessEffect;
     match effect {
-        ProcessEffect::Kill(pid) => {
-            let result = executor.machine.processes.kill_process(pid).await;
+        ProcessEffect::Kill(window_id, pid) => {
+            let result = match executor.machine_for_window(state, window_id) {
+                Some(machine) => machine.processes.kill_process(pid).await,
+                None => Err(crate::machine::CapabilityError::Failed(
+                    process_machine_message(state, window_id),
+                )),
+            };
             match result {
                 Ok(()) => state.status = format!("Sent SIGTERM to PID {pid}"),
                 Err(error) => state.status = format!("Kill failed: {error}"),
             }
         }
-        ProcessEffect::KillForce(pid) => {
-            let result = executor.machine.processes.kill_process_force(pid).await;
+        ProcessEffect::KillForce(window_id, pid) => {
+            let result = match executor.machine_for_window(state, window_id) {
+                Some(machine) => machine.processes.kill_process_force(pid).await,
+                None => Err(crate::machine::CapabilityError::Failed(
+                    process_machine_message(state, window_id),
+                )),
+            };
             match result {
                 Ok(()) => state.status = format!("Sent SIGKILL to PID {pid}"),
                 Err(error) => state.status = format!("Force kill failed: {error}"),
@@ -190,4 +204,14 @@ pub async fn run_effect(
         }
     }
     executor.refresh_capabilities(state).await;
+}
+
+fn process_machine_message(state: &AppState, window_id: WindowId) -> String {
+    let machine_id = state
+        .window_machine_id(window_id)
+        .unwrap_or_else(|| state.active_machine_id.clone());
+    match machine_id {
+        crate::machine::MachineId::Local => "local machine unavailable".to_owned(),
+        crate::machine::MachineId::Named(name) => format!("not connected to {name}"),
+    }
 }
