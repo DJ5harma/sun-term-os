@@ -116,7 +116,7 @@ impl Default for AppState {
             file_managers: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
-            status: "Welcome · p launcher · F1–F3 switch workspaces".to_owned(),
+            status: "Welcome · ⊞ Apps below · F1–F3 workspaces".to_owned(),
             should_quit: false,
         }
     }

@@ -9,6 +9,7 @@ use ratatui::{
 use crate::{
     actions::Action,
     app::{AppState, Loadable},
+    input::shell_shortcuts::LAUNCHER_SHORTCUT_HINT,
 };
 
 use super::{hit_map::HitMap, theme};
@@ -17,7 +18,7 @@ pub fn columns(area: Rect) -> [Rect; 3] {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(10),
+            Constraint::Length(26),
             Constraint::Min(12),
             Constraint::Length(28),
         ])
@@ -26,14 +27,18 @@ pub fn columns(area: Rect) -> [Rect; 3] {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
-    let [badge, windows, status] = columns(area);
+    let [launcher, windows, status] = columns(area);
+    hits.register(launcher, Action::ToggleLauncher);
     frame.render_widget(
-        Paragraph::new(Span::styled(
-            " run ",
-            Style::default().fg(theme::BG).bg(theme::AMBER),
-        ))
-        .alignment(Alignment::Center),
-        badge,
+        Paragraph::new(Line::from(vec![
+            Span::styled(" ⊞ ", Style::default().fg(theme::BG).bg(theme::AMBER)),
+            Span::styled("Apps", Style::default().fg(theme::TEXT)),
+            Span::styled(
+                format!(" {LAUNCHER_SHORTCUT_HINT}"),
+                Style::default().fg(theme::MUTED),
+            ),
+        ])),
+        launcher,
     );
 
     let mut window_spans = Vec::new();

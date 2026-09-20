@@ -1,6 +1,6 @@
 mod keybindings;
 mod mouse_click;
-mod shell_shortcuts;
+pub mod shell_shortcuts;
 
 pub use mouse_click::DoubleClickState;
 

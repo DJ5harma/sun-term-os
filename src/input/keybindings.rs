@@ -9,6 +9,18 @@ use crate::{
 
 use super::shell_shortcuts::{consumes_for_shell, resolve as resolve_shell};
 
+/// New window shortcuts when the focused app is not a terminal (typing must not be stolen).
+fn quick_launch(key: KeyEvent) -> Option<Action> {
+    if key.modifiers != KeyModifiers::NONE {
+        return None;
+    }
+    match key.code {
+        KeyCode::Char('t') => Some(Action::OpenApplication(ApplicationKind::Terminal)),
+        KeyCode::Char('f') => Some(Action::OpenApplication(ApplicationKind::FileManager)),
+        _ => None,
+    }
+}
+
 pub fn action_for_key(
     key: KeyEvent,
     launcher_open: bool,
@@ -31,21 +43,6 @@ pub fn action_for_key(
 
     if file_manager_focused {
         return match key {
-            KeyEvent {
-                code: KeyCode::Char('w'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            } => Some(Action::CloseWindow),
-            KeyEvent {
-                code: KeyCode::Char('m'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            } => Some(Action::MinimizeWindow),
-            KeyEvent {
-                code: KeyCode::Char('f'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            } => Some(Action::ToggleMaximizeWindow),
             KeyEvent {
                 code: KeyCode::Up, ..
             } => Some(Action::MoveFileSelection(-1)),
@@ -119,29 +116,12 @@ pub fn action_for_key(
                 modifiers: KeyModifiers::NONE,
                 ..
             } => Some(Action::FileManagerSetSort(SortColumn::Modified)),
-            _ => None,
+            _ => quick_launch(key),
         };
     }
 
     if terminal_focused {
-        return match key {
-            KeyEvent {
-                code: KeyCode::Char('w'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            } => Some(Action::CloseWindow),
-            KeyEvent {
-                code: KeyCode::Char('m'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            } => Some(Action::MinimizeWindow),
-            KeyEvent {
-                code: KeyCode::Char('f'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            } => Some(Action::ToggleMaximizeWindow),
-            _ => None,
-        };
+        return None;
     }
 
     match key {
@@ -155,14 +135,6 @@ pub fn action_for_key(
             ..
         } => Some(Action::Quit),
         KeyEvent {
-            code: KeyCode::Char('p'),
-            ..
-        }
-        | KeyEvent {
-            code: KeyCode::Char(':'),
-            ..
-        } => Some(Action::ToggleLauncher),
-        KeyEvent {
             code: KeyCode::Tab, ..
         } => Some(Action::FocusNextWindow),
         KeyEvent {
@@ -173,31 +145,7 @@ pub fn action_for_key(
             code: KeyCode::Char('r'),
             ..
         } => Some(Action::Refresh),
-        KeyEvent {
-            code: KeyCode::Char('t'),
-            ..
-        } => Some(Action::OpenApplication(ApplicationKind::Terminal)),
-        KeyEvent {
-            code: KeyCode::Char('f'),
-            modifiers: KeyModifiers::NONE,
-            ..
-        } => Some(Action::OpenApplication(ApplicationKind::FileManager)),
-        KeyEvent {
-            code: KeyCode::Char('w'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(Action::CloseWindow),
-        KeyEvent {
-            code: KeyCode::Char('m'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(Action::MinimizeWindow),
-        KeyEvent {
-            code: KeyCode::Char('f'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(Action::ToggleMaximizeWindow),
-        _ => None,
+        other => quick_launch(other),
     }
 }
 
@@ -316,10 +264,13 @@ mod tests {
     fn launcher_and_terminal_shortcuts_are_translated() {
         assert_eq!(
             action_for_key(
-                KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+                KeyEvent::new(
+                    KeyCode::Char('p'),
+                    KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+                ),
                 false,
                 false,
-                false
+                false,
             ),
             Some(Action::ToggleLauncher)
         );
@@ -363,6 +314,32 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn launcher_chord_works_while_file_manager_is_focused() {
+        let chord = KeyEvent::new(
+            KeyCode::Char('p'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        );
+        assert_eq!(
+            action_for_key(chord, false, false, true),
+            Some(Action::ToggleLauncher)
+        );
+    }
+
+    #[test]
+    fn bare_p_reaches_terminal_when_focused() {
+        assert_eq!(
+            action_for_key(
+                KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+                false,
+                true,
+                false,
+            ),
+            None
+        );
+        assert!(terminal_input(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE)).is_some());
     }
 
     #[test]

@@ -15,7 +15,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap
         let text = [
             "The desktop is ready.",
             "",
-            "Press p to launch an application.",
+            "Open Apps from the bottom bar (⊞) or press Ctrl+Shift+P.",
             "Press t for a terminal window.",
             "Press f for the file manager.",
             "Switch workspaces with F1, F2, or F3.",
