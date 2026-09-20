@@ -57,6 +57,24 @@ impl FilesystemProvider for LocalFilesystemProvider {
             .await
             .map_err(|error| CapabilityError::Failed(error.to_string()))?
     }
+
+    async fn write_text_file(&self, path: &Path, contents: &str) -> Result<(), CapabilityError> {
+        let path = path.to_path_buf();
+        let contents = contents.to_owned();
+        tokio::task::spawn_blocking(move || write_text_file_blocking(&path, &contents))
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+}
+
+fn write_text_file_blocking(path: &Path, contents: &str) -> Result<(), CapabilityError> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?;
+    }
+    std::fs::write(path, contents).map_err(|error| CapabilityError::Failed(error.to_string()))
 }
 
 fn read_text_file_blocking(path: &Path, max_bytes: u64) -> Result<String, CapabilityError> {
@@ -70,7 +88,7 @@ fn read_text_file_blocking(path: &Path, max_bytes: u64) -> Result<String, Capabi
     let bytes = std::fs::read(path).map_err(|error| CapabilityError::Failed(error.to_string()))?;
     if bytes.contains(&0) {
         return Err(CapabilityError::Failed(
-            "binary file cannot be viewed".into(),
+            "binary file cannot be edited".into(),
         ));
     }
     String::from_utf8(bytes).map_err(|_| CapabilityError::Failed("not valid UTF-8".into()))

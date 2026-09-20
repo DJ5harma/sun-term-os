@@ -20,6 +20,19 @@ fn window_title(window: &Window, state: &AppState) -> String {
             .and_then(|view| view.title.as_deref())
             .map(|title| format!(" — {title}"))
             .unwrap_or_default()
+    } else if window.application == crate::domain::ApplicationKind::TextViewer {
+        state
+            .text_viewer(window.id)
+            .filter(|view| view.has_path())
+            .map(|view| {
+                let name = match view.path.file_name() {
+                    Some(name) => name.to_string_lossy().into_owned(),
+                    None => view.path.display().to_string(),
+                };
+                let dirty = if view.is_dirty() { " *" } else { "" };
+                format!(" — {name}{dirty}")
+            })
+            .unwrap_or_default()
     } else {
         String::new()
     };

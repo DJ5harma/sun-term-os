@@ -64,6 +64,7 @@ pub enum LauncherEffect {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TextViewerEffect {
     Read(WindowId, PathBuf),
+    Write(WindowId, PathBuf, String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

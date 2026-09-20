@@ -132,10 +132,28 @@ impl FilesystemProvider for SftpFilesystemProvider {
             .map_err(|error| CapabilityError::Failed(error.to_string()))?;
         if bytes.contains(&0) {
             return Err(CapabilityError::Failed(
-                "binary file cannot be viewed".into(),
+                "binary file cannot be edited".into(),
             ));
         }
         String::from_utf8(bytes).map_err(|_| CapabilityError::Failed("not valid UTF-8".into()))
+    }
+
+    async fn write_text_file(&self, path: &Path, contents: &str) -> Result<(), CapabilityError> {
+        let path_str = path_to_remote(path);
+        let bytes = contents.as_bytes();
+        let sftp = self.sftp.lock().await;
+        let mut file = sftp
+            .create(&path_str)
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?;
+        use tokio::io::AsyncWriteExt;
+        file.write_all(bytes)
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?;
+        file.flush()
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?;
+        Ok(())
     }
 }
 

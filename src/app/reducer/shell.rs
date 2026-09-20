@@ -23,8 +23,25 @@ pub(super) fn reduce(state: &mut AppState, action: ShellAction) -> Vec<Effect> {
             return open_application_effects(state, application, window_id);
         }
         ShellAction::CloseWindow => {
-            if let Some((window_id, application)) = close_focused_window(state) {
-                return apps::on_close(application, state, window_id);
+            if let Some(focused) = state.current_workspace().focused_window
+                && let Some(view) = state.text_viewers.get(&focused)
+                && view.is_dirty()
+            {
+                if matches!(
+                    view.dialog,
+                    crate::app::text_viewer::TextViewerDialog::ConfirmDiscardClose
+                ) {
+                    return close_window(state, focused);
+                }
+                if let Some(view) = state.text_viewer_mut(focused) {
+                    view.dialog = crate::app::text_viewer::TextViewerDialog::ConfirmDiscardClose;
+                }
+                state.status =
+                    "Unsaved changes — Ctrl+W or D discard · Ctrl+S save · Esc cancel".to_owned();
+                return Vec::new();
+            }
+            if let Some(focused) = state.current_workspace().focused_window {
+                return close_window(state, focused);
             }
         }
         ShellAction::FocusWindowSlot(slot) => {
@@ -100,15 +117,17 @@ fn toggle_show_desktop(state: &mut AppState) {
     );
 }
 
-fn close_focused_window(state: &mut AppState) -> Option<(u64, ApplicationKind)> {
-    let focused = state.current_workspace().focused_window?;
+pub(crate) fn close_window(state: &mut AppState, window_id: u64) -> Vec<Effect> {
     let workspace = state.current_workspace_mut();
     let application = workspace
         .windows
         .iter()
-        .find(|window| window.id == focused)?
-        .application;
-    workspace.windows.retain(|window| window.id != focused);
+        .find(|window| window.id == window_id)
+        .map(|window| window.application);
+    let Some(application) = application else {
+        return Vec::new();
+    };
+    workspace.windows.retain(|window| window.id != window_id);
     workspace.focused_window = workspace
         .windows
         .iter()
@@ -116,7 +135,7 @@ fn close_focused_window(state: &mut AppState) -> Option<(u64, ApplicationKind)> 
         .find(|window| window.state != WindowState::Minimized)
         .map(|window| window.id);
     state.status = "Window closed".to_owned();
-    Some((focused, application))
+    apps::on_close(application, state, window_id)
 }
 
 pub(super) fn focus_window(state: &mut AppState, id: u64) {

@@ -315,7 +315,7 @@ pub fn palette_entries(state: &AppState) -> Vec<PaletteEntry> {
             action: Action::FileManager(FileManagerAction::FileManagerBeginGoToPath),
         },
         PaletteEntry {
-            title: "Open in text viewer".to_owned(),
+            title: "Edit in Notepad".to_owned(),
             detail: "File manager · e on selected file".to_owned(),
             action: Action::FileManager(FileManagerAction::FileManagerOpenInViewer),
         },

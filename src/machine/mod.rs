@@ -111,6 +111,8 @@ pub trait FilesystemProvider: Send + Sync {
     async fn create_directory(&self, path: &Path) -> Result<(), CapabilityError>;
 
     async fn read_text_file(&self, path: &Path, max_bytes: u64) -> Result<String, CapabilityError>;
+
+    async fn write_text_file(&self, path: &Path, contents: &str) -> Result<(), CapabilityError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-## Project: TDE
+## Project: sun-term-os
 
 TDE is a lightweight, cross-platform, terminal-native desktop environment.
 

@@ -4,12 +4,13 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Position;
 
 use crate::{
-    actions::{Action, PaletteAction},
-    app::AppState,
+    actions::{Action, PaletteAction, TextViewerAction},
+    app::{AppState, text_viewer::TextViewerDialog},
     domain::ApplicationKind,
     ui::{
         geometry::{UiGeometry, shell_action_at},
         interaction::InteractionMap,
+        windows,
     },
 };
 
@@ -84,6 +85,26 @@ pub fn dispatch_pointer(
         return PointerDispatch {
             actions: vec![Action::Palette(PaletteAction::CloseLauncher)],
         };
+    }
+
+    if matches!(zone, PointerZone::Desktop)
+        && let Some(window) = state.focused_window()
+        && window.application == ApplicationKind::TextViewer
+        && let Some(view) = state.text_viewer(window.id)
+        && view.is_editable()
+        && matches!(view.dialog, TextViewerDialog::None)
+    {
+        let inner = windows::content_inner(geometry.desktop, window, state);
+        if let Some((line, col)) =
+            crate::ui::text_viewer::click_to_caret(inner, view, mouse.column, mouse.row)
+        {
+            return PointerDispatch {
+                actions: vec![Action::TextViewer(TextViewerAction::PlaceCaret {
+                    line,
+                    col,
+                })],
+            };
+        }
     }
 
     if let Some(primary) = map.resolve(mouse.column, mouse.row) {

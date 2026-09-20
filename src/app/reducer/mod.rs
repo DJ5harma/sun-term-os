@@ -15,7 +15,7 @@ use crate::{actions::Action, app::AppState};
 
 use super::effects::Effect;
 
-pub(crate) use shell::{open_application, open_application_effects};
+pub(crate) use shell::{close_window, open_application, open_application_effects};
 
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     match action {
