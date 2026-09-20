@@ -13,6 +13,8 @@ fn quick_launch(key: KeyEvent) -> Option<Action> {
     match key.code {
         KeyCode::Char('t') => Some(Action::OpenApplication(ApplicationKind::Terminal)),
         KeyCode::Char('f') => Some(Action::OpenApplication(ApplicationKind::FileManager)),
+        KeyCode::Char('p') => Some(Action::OpenApplication(ApplicationKind::Processes)),
+        KeyCode::Char('s') => Some(Action::OpenApplication(ApplicationKind::SystemInfo)),
         _ => None,
     }
 }
@@ -92,7 +94,70 @@ pub fn file_manager_key(key: KeyEvent) -> Option<Action> {
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(Action::FileManagerSetSort(SortColumn::Modified)),
+        KeyEvent {
+            code: KeyCode::Char('o'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::FileManagerOpenInTerminal),
         _ => quick_launch(key),
+    }
+}
+
+pub fn process_manager_key(key: KeyEvent) -> Option<Action> {
+    match key {
+        KeyEvent {
+            code: KeyCode::Up, ..
+        } => Some(Action::MoveProcessSelection(-1)),
+        KeyEvent {
+            code: KeyCode::Down,
+            ..
+        } => Some(Action::MoveProcessSelection(1)),
+        KeyEvent {
+            code: KeyCode::PageUp,
+            ..
+        } => Some(Action::ProcessPageScroll(-1)),
+        KeyEvent {
+            code: KeyCode::PageDown,
+            ..
+        } => Some(Action::ProcessPageScroll(1)),
+        KeyEvent {
+            code: KeyCode::Char('/'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::ProcessFilterBegin),
+        KeyEvent {
+            code: KeyCode::Char('x'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::ProcessKillSelected),
+        KeyEvent {
+            code: KeyCode::Char('r'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::Refresh),
+        other => quick_launch(other),
+    }
+}
+
+pub fn process_filter_key(key: KeyEvent) -> Option<Action> {
+    match key {
+        KeyEvent {
+            code: KeyCode::Esc, ..
+        } => Some(Action::ProcessFilterEnd),
+        KeyEvent {
+            code: KeyCode::Enter,
+            ..
+        } => Some(Action::ProcessFilterEnd),
+        KeyEvent {
+            code: KeyCode::Backspace,
+            ..
+        } => Some(Action::ProcessFilterBackspace),
+        KeyEvent {
+            code: KeyCode::Char(character),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::ProcessFilterPush(character)),
+        _ => None,
     }
 }
 
@@ -137,6 +202,7 @@ pub fn action_for_key(
         &KeyInputContext {
             focus,
             window_pick_mode: false,
+            process_filter_active: false,
         },
     ) {
         KeyDispatch::Action(action) => Some(action),

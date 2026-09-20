@@ -2,6 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
+/// Escape a path for use inside single-quoted shell words.
+pub fn shell_single_quoted(path: &Path) -> String {
+    format!("'{}'", path.display().to_string().replace('\'', "'\\''"))
+}
+
 use crate::machine::{DirectoryListing, FileEntry, FileEntryKind};
 
 use super::Loadable;

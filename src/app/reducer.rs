@@ -6,8 +6,9 @@ use crate::{
         AppState, ApplicationKind, FileManagerFocus, Loadable, TerminalStatus, Window, WindowState,
         file_manager::{
             DisplayRowKind, apply_sorted_listing, display_row_count, display_row_kind,
-            ensure_selection_visible,
+            ensure_selection_visible, shell_single_quoted,
         },
+        process_manager::{matching_indices, selected_process},
     },
     machine::{FileEntryKind, local::default_start_path},
 };
@@ -55,6 +56,9 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
                     }
                     ApplicationKind::FileManager => {
                         state.remove_file_manager(window_id);
+                    }
+                    ApplicationKind::Processes => {
+                        state.remove_process_manager(window_id);
                     }
                     _ => {}
                 }
@@ -229,8 +233,175 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
                 String::new()
             };
         }
+        Action::MoveProcessSelection(offset) => {
+            if let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager_mut(window_id)
+                && let Loadable::Ready(processes) = &state.processes
+            {
+                let count = matching_indices(processes, &manager.filter).len();
+                if count > 0 {
+                    let next = manager.selected_index as i32 + offset;
+                    manager.selected_index = next.clamp(0, count as i32 - 1) as usize;
+                    manager.clamp_selection(count);
+                }
+            }
+        }
+        Action::ProcessPageScroll(pages) => {
+            if let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager_mut(window_id)
+                && let Loadable::Ready(processes) = &state.processes
+            {
+                let count = matching_indices(processes, &manager.filter).len();
+                let delta = pages * manager.visible_rows.max(1) as i32;
+                let next = manager.selected_index as i32 + delta;
+                manager.selected_index = next.clamp(0, count.saturating_sub(1) as i32) as usize;
+                manager.clamp_selection(count);
+            }
+        }
+        Action::ProcessFilterBegin => {
+            if let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager_mut(window_id)
+            {
+                manager.filter_active = true;
+                manager.filter.clear();
+                manager.selected_index = 0;
+                manager.scroll_offset = 0;
+                state.status = "Process filter · type to search · Esc when done".to_owned();
+            }
+        }
+        Action::ProcessFilterPush(character) => {
+            if let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager_mut(window_id)
+            {
+                manager.filter.push(character);
+                if let Loadable::Ready(processes) = &state.processes {
+                    let count = matching_indices(processes, &manager.filter).len();
+                    manager.clamp_selection(count);
+                }
+            }
+        }
+        Action::ProcessFilterBackspace => {
+            if let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager_mut(window_id)
+            {
+                manager.filter.pop();
+                if let Loadable::Ready(processes) = &state.processes {
+                    let count = matching_indices(processes, &manager.filter).len();
+                    manager.clamp_selection(count);
+                }
+            }
+        }
+        Action::ProcessFilterEnd => {
+            if let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager_mut(window_id)
+            {
+                manager.filter_active = false;
+                state.status = "Process filter applied".to_owned();
+            }
+        }
+        Action::ProcessKillSelected => {
+            if let Loadable::Ready(processes) = &state.processes {
+                if let Some(window_id) = focused_process_window(state)
+                    && let Some(manager) = state.process_manager(window_id)
+                    && let Some(process) =
+                        selected_process(processes, &manager.filter, manager.selected_index)
+                {
+                    state.status = format!("Sending SIGTERM to {} ({})", process.name, process.pid);
+                    return vec![Effect::KillProcess(process.pid)];
+                }
+            }
+            state.status = "No process selected".to_owned();
+        }
+        Action::SelectProcessRow(window_id, index) => {
+            if focused_process_window(state) == Some(window_id)
+                && let Some(manager) = state.process_manager_mut(window_id)
+                && let Loadable::Ready(processes) = &state.processes
+            {
+                let count = matching_indices(processes, &manager.filter).len();
+                if index < count {
+                    manager.selected_index = index;
+                    manager.clamp_selection(count);
+                }
+            }
+        }
+        Action::FileManagerOpenInTerminal => return open_selection_in_terminal(state),
     }
     Vec::new()
+}
+
+fn focused_process_window(state: &AppState) -> Option<u64> {
+    state
+        .focused_window()
+        .filter(|window| window.application == ApplicationKind::Processes)
+        .map(|window| window.id)
+}
+
+fn process_match_count(state: &AppState, window_id: u64) -> usize {
+    let filter = state
+        .process_manager(window_id)
+        .map(|manager| manager.filter.clone())
+        .unwrap_or_default();
+    match &state.processes {
+        Loadable::Ready(processes) => matching_indices(processes, &filter).len(),
+        _ => 0,
+    }
+}
+
+fn open_selection_in_terminal(state: &mut AppState) -> Vec<Effect> {
+    let Some(file_window_id) = focused_file_manager_window(state) else {
+        return Vec::new();
+    };
+    let Some(manager) = state.file_manager(file_window_id) else {
+        return Vec::new();
+    };
+    let command = if manager.focus == FileManagerFocus::Places {
+        manager
+            .places
+            .get(manager.selected_place)
+            .map(|place| format!("cd {}\n", shell_single_quoted(&place.path)))
+    } else {
+        let Loadable::Ready(listing) = &manager.listing else {
+            state.status = "Directory is still loading".to_owned();
+            return Vec::new();
+        };
+        match display_row_kind(&manager.current_path, listing, manager.selected_index) {
+            Some(DisplayRowKind::Parent) => {
+                let parent = manager.current_path.parent().map(|path| path.to_path_buf());
+                parent.map(|path| format!("cd {}\n", shell_single_quoted(&path)))
+            }
+            Some(DisplayRowKind::Entry) => {
+                let Some(entry) = crate::app::file_manager::display_entry(
+                    &manager.current_path,
+                    listing,
+                    manager.selected_index,
+                ) else {
+                    return Vec::new();
+                };
+                let path = listing.path.join(&entry.name);
+                if entry.kind == FileEntryKind::Directory {
+                    Some(format!("cd {}\n", shell_single_quoted(&path)))
+                } else {
+                    let parent = shell_single_quoted(listing.path.as_path());
+                    let file = shell_single_quoted(&path);
+                    Some(format!(
+                        "cd {} && (command -v less >/dev/null && less {file} || cat {file})\n",
+                        parent
+                    ))
+                }
+            }
+            None => None,
+        }
+    };
+    let Some(command) = command else {
+        state.status = "Nothing to open in a terminal".to_owned();
+        return Vec::new();
+    };
+    let terminal_id = open_application(state, ApplicationKind::Terminal);
+    state.status = "Opened terminal for selection".to_owned();
+    vec![
+        Effect::StartTerminal(terminal_id),
+        Effect::WriteTerminal(terminal_id, command.into_bytes()),
+    ]
 }
 
 fn focused_file_manager_window(state: &AppState) -> Option<u64> {
@@ -251,6 +422,10 @@ fn open_application_effects(
             let path = default_start_path();
             state.init_file_manager(window_id, path.clone());
             vec![Effect::ReadDirectory(window_id, path)]
+        }
+        ApplicationKind::Processes => {
+            state.init_process_manager(window_id);
+            Vec::new()
         }
         _ => Vec::new(),
     }
@@ -339,7 +514,7 @@ fn open_selected_entry(state: &mut AppState) -> Vec<Effect> {
                 let path = listing.path.join(&entry.name);
                 return navigate_file_manager(state, window_id, path, true);
             }
-            state.status = format!("{} · read-only (open with another app later)", entry.name);
+            state.status = format!("{} · press o to open in a terminal", entry.name);
         }
         None => {}
     }
@@ -382,13 +557,12 @@ fn close_focused_window(state: &mut AppState) -> Option<(u64, ApplicationKind)> 
 }
 
 fn focus_window(state: &mut AppState, id: u64) {
-    if state
-        .current_workspace()
-        .windows
-        .iter()
-        .any(|window| window.id == id && window.state != WindowState::Minimized)
-    {
-        state.current_workspace_mut().focused_window = Some(id);
+    let workspace = state.current_workspace_mut();
+    if let Some(window) = workspace.windows.iter_mut().find(|window| window.id == id) {
+        if window.state == WindowState::Minimized {
+            window.state = WindowState::Normal;
+        }
+        workspace.focused_window = Some(id);
     }
 }
 
@@ -396,9 +570,14 @@ fn focus_window_slot(state: &mut AppState, slot: u8) {
     if !(1..=9).contains(&slot) {
         return;
     }
-    let visible = state.visible_window_ids();
+    let windows = state
+        .current_workspace()
+        .windows
+        .iter()
+        .map(|window| window.id)
+        .collect::<Vec<_>>();
     let index = (slot - 1) as usize;
-    if let Some(id) = visible.get(index) {
+    if let Some(id) = windows.get(index) {
         focus_window(state, *id);
         state.status = format!("Window {slot}");
     }
@@ -520,6 +699,42 @@ mod tests {
             &effects[0],
             Effect::ReadDirectory(id, path) if *id == window_id && path == &PathBuf::from("/tmp")
         ));
+    }
+
+    #[test]
+    fn focusing_a_minimized_window_restores_it() {
+        let mut state = AppState::default();
+        reduce(
+            &mut state,
+            Action::OpenApplication(ApplicationKind::Terminal),
+        );
+        reduce(
+            &mut state,
+            Action::OpenApplication(ApplicationKind::FileManager),
+        );
+        let minimized_id = state.current_workspace().windows[0].id;
+        reduce(&mut state, Action::FocusWindowSlot(1));
+        reduce(&mut state, Action::MinimizeWindow);
+        assert_eq!(
+            state
+                .current_workspace()
+                .windows
+                .iter()
+                .find(|window| window.id == minimized_id)
+                .map(|window| window.state),
+            Some(WindowState::Minimized)
+        );
+        reduce(&mut state, Action::FocusWindow(minimized_id));
+        assert_eq!(
+            state
+                .current_workspace()
+                .windows
+                .iter()
+                .find(|window| window.id == minimized_id)
+                .map(|window| window.state),
+            Some(WindowState::Normal)
+        );
+        assert_eq!(state.current_workspace().focused_window, Some(minimized_id));
     }
 
     #[test]

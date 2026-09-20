@@ -33,4 +33,13 @@ pub enum Action {
     FileManagerSetSort(crate::app::SortColumn),
     SelectFileManagerPlace(WindowId, usize),
     ToggleInputDebug,
+    MoveProcessSelection(i32),
+    ProcessPageScroll(i32),
+    ProcessFilterBegin,
+    ProcessFilterPush(char),
+    ProcessFilterBackspace,
+    ProcessFilterEnd,
+    ProcessKillSelected,
+    FileManagerOpenInTerminal,
+    SelectProcessRow(WindowId, usize),
 }

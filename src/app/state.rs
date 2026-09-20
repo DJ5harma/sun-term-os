@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub use super::file_manager::{FileManagerFocus, FileSort, Place, SortColumn};
+pub use super::process_manager::ProcessManagerState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Loadable<T> {
@@ -86,6 +87,7 @@ pub struct AppState {
     pub terminal_contents: HashMap<WindowId, String>,
     pub terminal_statuses: HashMap<WindowId, TerminalStatus>,
     pub file_managers: HashMap<WindowId, FileManagerState>,
+    pub process_managers: HashMap<WindowId, ProcessManagerState>,
     pub system: Loadable<SystemSnapshot>,
     pub processes: Loadable<Vec<ProcessInfo>>,
     pub status: String,
@@ -118,6 +120,7 @@ impl Default for AppState {
             terminal_contents: HashMap::new(),
             terminal_statuses: HashMap::new(),
             file_managers: HashMap::new(),
+            process_managers: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
             status: "Welcome · ⊞ Apps · Ctrl+G then 1–9 for windows · F1–F3 workspaces".to_owned(),
@@ -166,6 +169,14 @@ impl AppState {
                     Ok(processes) => Loadable::Ready(processes),
                     Err(error) => Loadable::Failed(error),
                 };
+                if let Loadable::Ready(processes) = &self.processes {
+                    for manager in self.process_managers.values_mut() {
+                        let count =
+                            super::process_manager::matching_indices(processes, &manager.filter)
+                                .len();
+                        manager.clamp_selection(count);
+                    }
+                }
             }
             Event::DirectoryLoaded(window_id, result) => {
                 if let Some(manager) = self.file_managers.get_mut(&window_id) {
@@ -240,5 +251,25 @@ impl AppState {
 
     pub(crate) fn remove_file_manager(&mut self, window_id: WindowId) {
         self.file_managers.remove(&window_id);
+    }
+
+    pub fn process_manager(&self, window_id: WindowId) -> Option<&ProcessManagerState> {
+        self.process_managers.get(&window_id)
+    }
+
+    pub(crate) fn process_manager_mut(
+        &mut self,
+        window_id: WindowId,
+    ) -> Option<&mut ProcessManagerState> {
+        self.process_managers.get_mut(&window_id)
+    }
+
+    pub(crate) fn init_process_manager(&mut self, window_id: WindowId) {
+        self.process_managers
+            .insert(window_id, ProcessManagerState::new());
+    }
+
+    pub(crate) fn remove_process_manager(&mut self, window_id: WindowId) {
+        self.process_managers.remove(&window_id);
     }
 }

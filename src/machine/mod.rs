@@ -23,6 +23,14 @@ pub struct MachineDescriptor {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct DiskSnapshot {
+    pub name: String,
+    pub mount_point: String,
+    pub total_bytes: u64,
+    pub available_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct SystemSnapshot {
     pub hostname: String,
     pub os: String,
@@ -31,6 +39,7 @@ pub struct SystemSnapshot {
     pub memory_used: u64,
     pub memory_total: u64,
     pub uptime_seconds: u64,
+    pub disks: Vec<DiskSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +68,8 @@ pub trait SystemInfoProvider: Send + Sync {
 #[async_trait]
 pub trait ProcessProvider: Send + Sync {
     async fn processes(&self) -> Result<Vec<ProcessInfo>, CapabilityError>;
+
+    async fn kill_process(&self, pid: u32) -> Result<(), CapabilityError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,5 +1,6 @@
 mod effects;
 pub mod file_manager;
+pub mod process_manager;
 mod reducer;
 pub mod state;
 
@@ -67,6 +68,7 @@ impl App {
                 &self.state,
             );
             self.sync_file_manager_visible_rows();
+            self.sync_process_manager_visible_rows();
             self.resize_focused_terminal();
             self.interactions.clear();
             terminal.draw(|frame| {
@@ -105,9 +107,16 @@ impl App {
                 } else {
                     input::FocusContext::Chrome
                 };
+                let process_filter_active = self
+                    .state
+                    .focused_window()
+                    .filter(|window| window.application == ApplicationKind::Processes)
+                    .and_then(|window| self.state.process_manager(window.id))
+                    .is_some_and(|manager| manager.filter_active);
                 let context = input::KeyInputContext {
                     focus,
                     window_pick_mode: self.state.window_pick_mode,
+                    process_filter_active,
                 };
                 let dispatch = input::handle_key(key, &context);
                 if self.state.input_debug {
@@ -188,7 +197,44 @@ impl App {
                     self.state
                         .apply_event(Event::DirectoryLoaded(window_id, result));
                 }
+                Effect::WriteTerminal(window_id, bytes) => {
+                    let _ = self.terminal_manager.write_input(window_id, &bytes);
+                }
+                Effect::KillProcess(pid) => {
+                    let result = self.process_provider.kill_process(pid).await;
+                    match result {
+                        Ok(()) => self.state.status = format!("Sent SIGTERM to PID {pid}"),
+                        Err(error) => self.state.status = format!("Kill failed: {error}"),
+                    }
+                    self.refresh_capabilities().await;
+                }
             }
+        }
+    }
+
+    fn sync_process_manager_visible_rows(&mut self) {
+        let Some(window) = self
+            .state
+            .focused_window()
+            .filter(|window| window.application == ApplicationKind::Processes)
+        else {
+            return;
+        };
+        let window_inner = ui::windows::content_inner(self.geometry.desktop, window, &self.state);
+        let rows = window_inner.height.saturating_sub(4) as usize;
+        let filter = self
+            .state
+            .process_manager(window.id)
+            .map(|manager| manager.filter.clone());
+        let match_count = match (&self.state.processes, &filter) {
+            (Loadable::Ready(processes), Some(filter)) => {
+                process_manager::matching_indices(processes, filter).len()
+            }
+            _ => 0,
+        };
+        if let Some(manager) = self.state.process_manager_mut(window.id) {
+            manager.visible_rows = rows.max(1);
+            manager.clamp_selection(match_count);
         }
     }
 
