@@ -1,4 +1,5 @@
 mod keybindings;
+mod shell_shortcuts;
 
 use crossterm::event::{KeyEvent, MouseEvent};
 

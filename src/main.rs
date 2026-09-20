@@ -12,7 +12,10 @@ use std::io::{self, stdout};
 use anyhow::Result;
 use app::App;
 use crossterm::{
-    event::EnableMouseCapture,
+    event::{
+        EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+        PushKeyboardEnhancementFlags,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -41,7 +44,16 @@ async fn run() -> Result<()> {
 
 fn enable_terminal() -> Result<()> {
     enable_raw_mode()?;
-    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(
+        io::stdout(),
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+                | KeyboardEnhancementFlags::REPORT_EVENT_TYPES,
+        ),
+    )?;
     Ok(())
 }
 
@@ -49,6 +61,7 @@ fn disable_terminal() -> Result<()> {
     disable_raw_mode()?;
     execute!(
         io::stdout(),
+        PopKeyboardEnhancementFlags,
         LeaveAlternateScreen,
         crossterm::event::DisableMouseCapture
     )?;

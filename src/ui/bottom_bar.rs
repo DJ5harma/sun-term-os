@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::Style,
     text::{Line, Span},
     widgets::Paragraph,
@@ -10,25 +10,34 @@ use crate::app::{AppState, Loadable};
 
 use super::{geometry::UiGeometry, theme};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeometry) {
+pub fn columns(area: Rect) -> [Rect; 3] {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(13),
-            Constraint::Min(20),
-            Constraint::Length(32),
+            Constraint::Length(10),
+            Constraint::Min(12),
+            Constraint::Length(28),
         ])
         .split(area);
+    [chunks[0], chunks[1], chunks[2]]
+}
+
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeometry) {
+    let [badge, windows, status] = columns(area);
     frame.render_widget(
-        Paragraph::new("  running  ").style(Style::default().fg(theme::BG).bg(theme::AMBER)),
-        chunks[0],
+        Paragraph::new(Span::styled(
+            " run ",
+            Style::default().fg(theme::BG).bg(theme::AMBER),
+        ))
+        .alignment(Alignment::Center),
+        badge,
     );
 
-    let mut windows = Vec::new();
+    let mut window_spans = Vec::new();
     for window in &state.current_workspace().windows {
         let active = Some(window.id) == state.current_workspace().focused_window;
-        windows.push(Span::styled(
-            format!(" {:<18} ", window.application.title()),
+        window_spans.push(Span::styled(
+            format!(" {} ", window.application.title()),
             if active {
                 theme::active()
             } else {
@@ -36,24 +45,24 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeom
             },
         ));
     }
-    if windows.is_empty() {
-        windows.push(Span::styled(" no open applications ", theme::muted()));
+    if window_spans.is_empty() {
+        window_spans.push(Span::styled(" — ", theme::muted()));
     }
-    frame.render_widget(Paragraph::new(Line::from(windows)), chunks[1]);
+    frame.render_widget(Paragraph::new(Line::from(window_spans)), windows);
 
     let process_count = match &state.processes {
-        Loadable::Ready(processes) => format!("{} processes", processes.len()),
-        Loadable::Loading => "processes loading".to_owned(),
-        Loadable::Failed(_) => "processes unavailable".to_owned(),
+        Loadable::Ready(processes) => format!("{} proc", processes.len()),
+        Loadable::Loading => "proc…".to_owned(),
+        Loadable::Failed(_) => "proc —".to_owned(),
     };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(process_count, Style::default().fg(theme::BLUE)),
-            Span::styled("  ·  ", theme::muted()),
-            Span::styled(&state.status, theme::muted()),
+            Span::styled(" · ", theme::muted()),
+            Span::styled(state.status.as_str(), theme::muted()),
         ]))
-        .alignment(ratatui::layout::Alignment::Right),
-        chunks[2],
+        .alignment(Alignment::Right),
+        status,
     );
     let _ = geometry;
 }

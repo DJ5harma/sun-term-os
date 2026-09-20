@@ -3,7 +3,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use crate::{
     app::{AppState, Loadable},
     domain::{ApplicationKind, WindowId},
-    ui::file_manager,
+    ui::{bottom_bar, file_manager, top_bar},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -14,34 +14,26 @@ pub struct UiGeometry {
     pub launcher: Rect,
     pub launcher_button: Rect,
     pub launcher_targets: Vec<(ApplicationKind, Rect)>,
-    pub workspace_targets: Vec<(usize, Rect)>,
     pub window_targets: Vec<(WindowId, Rect)>,
     pub file_manager_row_targets: Vec<(WindowId, Vec<(usize, Rect)>)>,
 }
+
+/// Vertical chrome: top bar (workspace tabs), single-line bottom status strip.
+pub const TOP_BAR_HEIGHT: u16 = 3;
+pub const BOTTOM_BAR_HEIGHT: u16 = 1;
 
 pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
     let root = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
+            Constraint::Length(TOP_BAR_HEIGHT),
             Constraint::Min(5),
-            Constraint::Length(3),
+            Constraint::Length(BOTTOM_BAR_HEIGHT),
         ])
         .split(area);
-    let top = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(13),
-            Constraint::Min(20),
-            Constraint::Length(24),
-        ])
-        .split(root[0]);
-    let workspace_targets = workspace_targets(top[1], state.workspaces.len());
-    let bottom = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(13), Constraint::Min(12)])
-        .split(root[2]);
-    let window_targets = window_targets(bottom[1], state);
+    let top_columns = top_bar::columns(root[0]);
+    let bottom_columns = bottom_bar::columns(root[2]);
+    let window_targets = window_targets(bottom_columns[1], state);
     let launcher = centered_rect(64, 62, area);
     let file_manager_row_targets = file_manager_row_targets(root[1], state);
     UiGeometry {
@@ -49,9 +41,8 @@ pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
         desktop: root[1],
         bottom_bar: root[2],
         launcher,
-        launcher_button: top[0],
+        launcher_button: top_columns[0],
         launcher_targets: launcher_targets(launcher),
-        workspace_targets,
         window_targets,
         file_manager_row_targets,
     }
@@ -104,13 +95,17 @@ fn launcher_targets(area: Rect) -> Vec<(ApplicationKind, Rect)> {
         .collect()
 }
 
-fn workspace_targets(area: Rect, count: usize) -> Vec<(usize, Rect)> {
+/// Workspace labels in the top bar; must match [top_bar::render] cell layout.
+pub fn workspace_cells(area: Rect, count: usize) -> Vec<(usize, Rect)> {
     if count == 0 {
         return Vec::new();
     }
     Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(std::iter::repeat_n(Constraint::Length(5), count))
+        .constraints(std::iter::repeat_n(
+            Constraint::Ratio(1, count as u32),
+            count,
+        ))
         .split(area)
         .iter()
         .copied()
@@ -161,8 +156,7 @@ mod tests {
     fn geometry_has_stable_top_and_bottom_bars() {
         let state = AppState::default();
         let geometry = calculate(Rect::new(0, 0, 120, 40), &state);
-        assert_eq!(geometry.top_bar.height, 3);
-        assert_eq!(geometry.bottom_bar.height, 3);
-        assert_eq!(geometry.workspace_targets.len(), 3);
+        assert_eq!(geometry.top_bar.height, TOP_BAR_HEIGHT);
+        assert_eq!(geometry.bottom_bar.height, BOTTOM_BAR_HEIGHT);
     }
 }

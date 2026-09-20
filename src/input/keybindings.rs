@@ -7,12 +7,18 @@ use crate::{
     ui::geometry::UiGeometry,
 };
 
+use super::shell_shortcuts::{consumes_for_shell, resolve as resolve_shell};
+
 pub fn action_for_key(
     key: KeyEvent,
     launcher_open: bool,
     terminal_focused: bool,
     file_manager_focused: bool,
 ) -> Option<Action> {
+    if let Some(action) = resolve_shell(key) {
+        return Some(action);
+    }
+
     if launcher_open {
         return match key.code {
             KeyCode::Esc => Some(Action::CloseLauncher),
@@ -40,13 +46,6 @@ pub fn action_for_key(
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => Some(Action::ToggleMaximizeWindow),
-            KeyEvent {
-                code: KeyCode::Char(number @ '1'..='3'),
-                modifiers,
-                ..
-            } if modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::SwitchWorkspace(number as usize - '1' as usize))
-            }
             KeyEvent {
                 code: KeyCode::Up, ..
             } => Some(Action::MoveFileSelection(-1)),
@@ -93,13 +92,6 @@ pub fn action_for_key(
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => Some(Action::ToggleMaximizeWindow),
-            KeyEvent {
-                code: KeyCode::Char(number @ '1'..='3'),
-                modifiers,
-                ..
-            } if modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::SwitchWorkspace(number as usize - '1' as usize))
-            }
             _ => None,
         };
     }
@@ -157,15 +149,14 @@ pub fn action_for_key(
             modifiers: KeyModifiers::CONTROL,
             ..
         } => Some(Action::ToggleMaximizeWindow),
-        KeyEvent {
-            code: KeyCode::Char(number @ '1'..='3'),
-            ..
-        } => Some(Action::SwitchWorkspace(number as usize - '1' as usize)),
         _ => None,
     }
 }
 
 pub fn terminal_input(key: KeyEvent) -> Option<Vec<u8>> {
+    if consumes_for_shell(key) {
+        return None;
+    }
     if key.modifiers.contains(KeyModifiers::CONTROL)
         && let KeyCode::Char(character) = key.code
     {
@@ -224,11 +215,6 @@ pub fn action_for_mouse(
     if geometry.launcher_button.contains(position) {
         return Some(Action::ToggleLauncher);
     }
-    for (index, area) in &geometry.workspace_targets {
-        if area.contains(position) {
-            return Some(Action::SwitchWorkspace(*index));
-        }
-    }
     for (id, area) in &geometry.window_targets {
         if area.contains(position)
             && state
@@ -252,6 +238,9 @@ pub fn action_for_mouse(
 
 pub fn terminal_mouse(mouse: MouseEvent, geometry: &UiGeometry) -> Option<Vec<u8>> {
     let position = Position::new(mouse.column, mouse.row);
+    if geometry.top_bar.contains(position) || geometry.bottom_bar.contains(position) {
+        return None;
+    }
     if !geometry.desktop.contains(position) {
         return None;
     }
@@ -343,24 +332,6 @@ mod tests {
     }
 
     #[test]
-    fn mouse_workspace_hit_testing_uses_rendered_geometry() {
-        let state = AppState::default();
-        let geometry = crate::ui::geometry::calculate(Rect::new(0, 0, 120, 40), &state);
-        let target = geometry.workspace_targets[1].1;
-        let mouse = MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Left),
-            column: target.x + 1,
-            row: target.y + 1,
-            modifiers: KeyModifiers::NONE,
-        };
-
-        assert_eq!(
-            action_for_mouse(mouse, &state, &geometry),
-            Some(Action::SwitchWorkspace(1))
-        );
-    }
-
-    #[test]
     fn file_manager_navigation_is_translated_when_focused() {
         assert_eq!(
             action_for_key(
@@ -379,6 +350,19 @@ mod tests {
                 true
             ),
             Some(Action::OpenSelectedEntry)
+        );
+    }
+
+    #[test]
+    fn f_keys_switch_workspaces_from_any_app() {
+        assert_eq!(
+            action_for_key(
+                KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE),
+                false,
+                true,
+                false
+            ),
+            Some(Action::SwitchWorkspace(1))
         );
     }
 
@@ -402,16 +386,16 @@ mod tests {
     fn launcher_clicks_and_terminal_mouse_events_use_shared_geometry() {
         let state = AppState::default();
         let geometry = crate::ui::geometry::calculate(Rect::new(0, 0, 120, 40), &state);
-        let workspace = geometry.workspace_targets[1].1;
+        let launcher = geometry.launcher_button;
         let mouse = MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
-            column: workspace.x + 1,
-            row: workspace.y + 1,
+            column: launcher.x + 1,
+            row: launcher.y + 1,
             modifiers: KeyModifiers::NONE,
         };
         assert_eq!(
             action_for_mouse(mouse, &state, &geometry),
-            Some(Action::SwitchWorkspace(1))
+            Some(Action::ToggleLauncher)
         );
 
         let terminal_mouse_event = MouseEvent {
@@ -424,5 +408,18 @@ mod tests {
             terminal_mouse(terminal_mouse_event, &geometry),
             Some(b"\x1b[<64;4;3M".to_vec())
         );
+    }
+
+    #[test]
+    fn terminal_mouse_ignores_top_bar_clicks() {
+        let state = AppState::default();
+        let geometry = crate::ui::geometry::calculate(Rect::new(0, 0, 120, 40), &state);
+        let mouse = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: geometry.top_bar.x + 1,
+            row: geometry.top_bar.y + 1,
+            modifiers: KeyModifiers::NONE,
+        };
+        assert!(terminal_mouse(mouse, &geometry).is_none());
     }
 }
