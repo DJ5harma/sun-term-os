@@ -10,7 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::actions::{Action, PaletteAction, ShellAction};
 
 /// Shown in the shell chrome; keep in sync with [match_global].
-pub const LAUNCHER_SHORTCUT_HINT: &str = "Alt+P command palette";
+pub const LAUNCHER_SHORTCUT_HINT: &str = "· Alt+P";
 
 pub const WINDOW_FOCUS_HINT: &str = "Ctrl+G, then 1–9";
 
