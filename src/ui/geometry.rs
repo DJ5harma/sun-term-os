@@ -1,6 +1,9 @@
 use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 
-use crate::{actions::Action, app::AppState};
+use crate::{
+    actions::{Action, PaletteAction, ShellAction},
+    app::{AppState, palette::filtered_entries},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct TopBarGeometry {
@@ -48,8 +51,28 @@ pub fn calculate(area: Rect, _state: &AppState) -> UiGeometry {
         top_bar: top_bar_layout(root[0]),
         desktop: root[1],
         bottom_bar: bottom_bar_layout(root[2]),
-        launcher: centered_rect(64, 62, area),
+        launcher: launcher_palette_rect(area, _state),
     }
+}
+
+/// Height fits the command list (no huge empty modal); width stays readable.
+pub fn launcher_palette_rect(area: Rect, state: &AppState) -> Rect {
+    const MAX_LIST_ROWS: usize = 18;
+    const MIN_LIST_ROWS: usize = 4;
+    let entry_count = if state.launcher_open {
+        filtered_entries(state).len()
+    } else {
+        MIN_LIST_ROWS
+    };
+    let list_rows = if entry_count == 0 {
+        MIN_LIST_ROWS
+    } else {
+        entry_count.clamp(MIN_LIST_ROWS, MAX_LIST_ROWS)
+    };
+    // Block top+bottom border, query line, one line per result.
+    let height = 2 + 1 + list_rows as u16;
+    let percent_y = (height * 100 / area.height.max(1)).clamp(14, 55);
+    centered_rect(64, percent_y, area)
 }
 
 pub fn top_bar_layout(area: Rect) -> TopBarGeometry {
@@ -128,7 +151,7 @@ pub fn shell_action_at(
 
     if geometry.bottom_bar.area.contains(position) {
         if geometry.bottom_bar.launcher.contains(position) {
-            return Some(Action::ToggleLauncher);
+            return Some(Action::Palette(PaletteAction::ToggleLauncher));
         }
         let workspace_windows = &state.current_workspace().windows;
         for (window, cell) in workspace_windows.iter().zip(window_tab_cells(
@@ -136,7 +159,7 @@ pub fn shell_action_at(
             workspace_windows.len(),
         )) {
             if cell.contains(position) {
-                return Some(Action::FocusWindow(window.id));
+                return Some(Action::Shell(ShellAction::FocusWindow(window.id)));
             }
         }
         return None;
@@ -145,7 +168,7 @@ pub fn shell_action_at(
     if geometry.top_bar.area.contains(position) {
         for (index, cell) in workspace_cells(geometry.top_bar.workspaces, state.workspaces.len()) {
             if cell.contains(position) {
-                return Some(Action::SwitchWorkspace(index));
+                return Some(Action::Shell(ShellAction::SwitchWorkspace(index)));
             }
         }
     }
@@ -204,13 +227,13 @@ mod tests {
                 &geometry,
                 &state
             ),
-            Some(Action::ToggleLauncher)
+            Some(Action::Palette(PaletteAction::ToggleLauncher))
         );
         let windows = &state.current_workspace().windows;
         let cell = window_tab_cells(geometry.bottom_bar.windows, windows.len())[0];
         assert_eq!(
             shell_action_at(cell.x + cell.width / 2, cell.y, &geometry, &state),
-            Some(Action::FocusWindow(windows[0].id))
+            Some(Action::Shell(ShellAction::FocusWindow(windows[0].id)))
         );
     }
 }

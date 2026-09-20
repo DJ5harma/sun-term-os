@@ -34,7 +34,7 @@ pub fn render(frame: &mut Frame, layout: TopBarGeometry, state: &AppState) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("● ", Style::default().fg(theme::GREEN)),
-            Span::styled(&state.machine.name, Style::default().fg(theme::TEXT)),
+            Span::styled(state.host_label(), Style::default().fg(theme::TEXT)),
         ]))
         .alignment(Alignment::Right),
         layout.machine,

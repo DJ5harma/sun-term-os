@@ -1,12 +1,8 @@
-use crate::actions::Action;
-use crate::domain::ApplicationKind;
-
 use super::AppState;
+use crate::actions::{Action, PaletteAction, ShellAction};
+use crate::apps;
 
-/// Rows available for results below the query line (keep in sync with [crate::ui::launcher]).
-pub const PALETTE_RESULT_ROWS: usize = 8;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PaletteEntry {
     pub title: String,
     pub detail: String,
@@ -16,18 +12,14 @@ pub struct PaletteEntry {
 pub fn all_entries(state: &AppState) -> Vec<PaletteEntry> {
     let mut entries = Vec::new();
 
-    for application in ApplicationKind::ALL {
-        entries.push(PaletteEntry {
-            title: application.title().to_owned(),
-            detail: application.launcher_description().to_owned(),
-            action: Action::OpenApplication(application),
-        });
+    for app in apps::all() {
+        entries.push(apps::palette_entry(app));
     }
 
     entries.push(PaletteEntry {
         title: "Refresh".to_owned(),
         detail: "Reload system and process data".to_owned(),
-        action: Action::Refresh,
+        action: Action::Shell(ShellAction::Refresh),
     });
 
     for index in 0..state.workspaces.len() {
@@ -35,7 +27,7 @@ pub fn all_entries(state: &AppState) -> Vec<PaletteEntry> {
         entries.push(PaletteEntry {
             title: format!("Workspace {slot}"),
             detail: format!("Switch to workspace {slot} (F{slot})"),
-            action: Action::SwitchWorkspace(index),
+            action: Action::Shell(ShellAction::SwitchWorkspace(index)),
         });
     }
 
@@ -43,9 +35,9 @@ pub fn all_entries(state: &AppState) -> Vec<PaletteEntry> {
     for (index, window) in windows.iter().enumerate().take(9) {
         let slot = index + 1;
         entries.push(PaletteEntry {
-            title: format!("Focus window {slot}: {}", window.application.title()),
+            title: format!("Focus window {slot}: {}", apps::title(window.application)),
             detail: format!("Bottom bar slot {slot}"),
-            action: Action::FocusWindowSlot(slot as u8),
+            action: Action::Shell(ShellAction::FocusWindowSlot(slot as u8)),
         });
     }
 
@@ -53,62 +45,26 @@ pub fn all_entries(state: &AppState) -> Vec<PaletteEntry> {
         entries.push(PaletteEntry {
             title: "Close window".to_owned(),
             detail: "Close the focused window (Ctrl+W)".to_owned(),
-            action: Action::CloseWindow,
+            action: Action::Shell(ShellAction::CloseWindow),
         });
         entries.push(PaletteEntry {
             title: "Minimize window".to_owned(),
             detail: "Minimize the focused window (Ctrl+M)".to_owned(),
-            action: Action::MinimizeWindow,
+            action: Action::Shell(ShellAction::MinimizeWindow),
         });
         entries.push(PaletteEntry {
             title: "Toggle maximize".to_owned(),
             detail: "Maximize or restore the focused window (Ctrl+F)".to_owned(),
-            action: Action::ToggleMaximizeWindow,
+            action: Action::Shell(ShellAction::ToggleMaximizeWindow),
         });
     }
 
-    if crate::app::file_manager::target_file_manager_window(state).is_some() {
-        entries.push(PaletteEntry {
-            title: "Toggle hidden files".to_owned(),
-            detail: "File manager · show or hide dotfiles".to_owned(),
-            action: Action::ToggleFileManagerHidden,
-        });
-        entries.push(PaletteEntry {
-            title: "Reload directory".to_owned(),
-            detail: "File manager · refresh listing".to_owned(),
-            action: Action::ReloadFileManager,
-        });
-        entries.push(PaletteEntry {
-            title: "Open in terminal".to_owned(),
-            detail: "File manager · run shell in selection".to_owned(),
-            action: Action::FileManagerOpenInTerminal,
-        });
-        entries.push(PaletteEntry {
-            title: "Trash or delete".to_owned(),
-            detail: "File manager · remove selection (confirm)".to_owned(),
-            action: Action::FileManagerRequestDelete,
-        });
-        entries.push(PaletteEntry {
-            title: "Rename".to_owned(),
-            detail: "File manager · Shift+R rename selection".to_owned(),
-            action: Action::FileManagerBeginRename,
-        });
-        entries.push(PaletteEntry {
-            title: "New file".to_owned(),
-            detail: "File manager · create in current folder".to_owned(),
-            action: Action::FileManagerBeginCreate(crate::app::file_manager::CreateKind::File),
-        });
-        entries.push(PaletteEntry {
-            title: "New folder".to_owned(),
-            detail: "File manager · create in current folder".to_owned(),
-            action: Action::FileManagerBeginCreate(crate::app::file_manager::CreateKind::Directory),
-        });
-    }
+    entries.extend(apps::palette_extras(state));
 
     entries.push(PaletteEntry {
         title: "Quit TDE".to_owned(),
         detail: "Exit the desktop".to_owned(),
-        action: Action::Quit,
+        action: Action::Shell(ShellAction::Quit),
     });
 
     entries
@@ -145,7 +101,7 @@ pub fn filtered_entries(state: &AppState) -> Vec<PaletteEntry> {
         return vec![PaletteEntry {
             title: format!("Run: {command}"),
             detail: "New terminal · !command palette prefix".to_owned(),
-            action: Action::RunPaletteShell,
+            action: Action::Palette(PaletteAction::RunPaletteShell),
         }];
     }
     all_entries(state)
@@ -195,7 +151,7 @@ mod tests {
     #[test]
     fn empty_query_lists_everything() {
         let state = AppState::default();
-        assert!(filtered_entries(&state).len() >= ApplicationKind::ALL.len());
+        assert!(filtered_entries(&state).len() >= apps::all().len());
     }
 
     #[test]
@@ -204,6 +160,9 @@ mod tests {
         state.launcher_query = "!echo hello".to_owned();
         let entries = filtered_entries(&state);
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].action, Action::RunPaletteShell);
+        assert_eq!(
+            entries[0].action,
+            Action::Palette(PaletteAction::RunPaletteShell)
+        );
     }
 }

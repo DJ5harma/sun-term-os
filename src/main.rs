@@ -1,5 +1,6 @@
 mod actions;
 mod app;
+mod apps;
 mod config;
 mod domain;
 mod events;
@@ -22,9 +23,8 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use machine::local::{LocalFilesystemProvider, LocalProcessProvider, LocalSystemInfoProvider};
+use machine::Machine;
 use ratatui::{Terminal, backend::CrosstermBackend};
-use std::sync::Arc;
 
 #[derive(Debug, Parser)]
 #[command(name = "tde", about = "Terminal-native desktop environment")]
@@ -47,12 +47,7 @@ async fn main() -> Result<()> {
 async fn run(config: crate::config::Config) -> Result<()> {
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
-    let app = App::new(
-        config,
-        Arc::new(LocalSystemInfoProvider),
-        Arc::new(LocalProcessProvider),
-        Arc::new(LocalFilesystemProvider),
-    );
+    let app = App::new(config, Machine::local());
     app.run(&mut terminal).await
 }
 

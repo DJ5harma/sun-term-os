@@ -1,12 +1,13 @@
-use crate::machine::ProcessInfo;
+use crate::{app::Loadable, machine::ProcessInfo};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProcessManagerState {
     pub selected_index: usize,
     pub scroll_offset: usize,
     pub filter: String,
     pub filter_active: bool,
     pub visible_rows: usize,
+    pub listing: Loadable<Vec<ProcessInfo>>,
 }
 
 impl ProcessManagerState {
@@ -17,6 +18,7 @@ impl ProcessManagerState {
             filter: String::new(),
             filter_active: false,
             visible_rows: 1,
+            listing: Loadable::Loading,
         }
     }
 

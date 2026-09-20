@@ -7,7 +7,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::actions::Action;
+use crate::actions::{Action, PaletteAction, ShellAction};
 
 /// Shown in the shell chrome; keep in sync with [match_global].
 pub const LAUNCHER_SHORTCUT_HINT: &str = "Alt+P command palette";
@@ -21,18 +21,19 @@ pub fn match_global(key: KeyEvent) -> Option<Action> {
         return None;
     }
     if is_launcher(key) {
-        return Some(Action::ToggleLauncher);
+        return Some(Action::Palette(PaletteAction::ToggleLauncher));
     }
     if is_begin_window_pick(key) {
-        return Some(Action::BeginWindowPick);
+        return Some(Action::Shell(ShellAction::BeginWindowPick));
     }
     if let Some(action) = window_chrome(key) {
         return Some(action);
     }
     if is_input_debug_toggle(key) {
-        return Some(Action::ToggleInputDebug);
+        return Some(Action::Shell(ShellAction::ToggleInputDebug));
     }
-    workspace_from_function_key(key.code).map(Action::SwitchWorkspace)
+    workspace_from_function_key(key.code)
+        .map(|index| Action::Shell(ShellAction::SwitchWorkspace(index)))
 }
 
 /// Second step of [WINDOW_FOCUS_HINT] (only while `window_pick_mode` is active).
@@ -41,10 +42,10 @@ pub fn match_window_pick(key: KeyEvent) -> Option<Action> {
         return None;
     }
     if matches!(key.code, KeyCode::Esc) {
-        return Some(Action::CancelWindowPick);
+        return Some(Action::Shell(ShellAction::CancelWindowPick));
     }
     if is_begin_window_pick(key) {
-        return Some(Action::CancelWindowPick);
+        return Some(Action::Shell(ShellAction::CancelWindowPick));
     }
     let KeyCode::Char(character) = key.code else {
         return None;
@@ -58,7 +59,7 @@ pub fn match_window_pick(key: KeyEvent) -> Option<Action> {
     let slot = character.to_digit(10)? as u8;
     (1..=9)
         .contains(&slot)
-        .then_some(Action::FocusWindowSlot(slot))
+        .then_some(Action::Shell(ShellAction::FocusWindowSlot(slot)))
 }
 
 fn is_input_debug_toggle(key: KeyEvent) -> bool {
@@ -76,13 +77,13 @@ pub fn match_modal(key: KeyEvent) -> Option<Action> {
         return None;
     }
     match key.code {
-        KeyCode::Esc => Some(Action::CloseLauncher),
-        KeyCode::Up => Some(Action::MoveLauncherUp),
-        KeyCode::Down => Some(Action::MoveLauncherDown),
-        KeyCode::Enter => Some(Action::ExecuteLauncherSelection),
-        KeyCode::Backspace => Some(Action::PaletteQueryBackspace),
+        KeyCode::Esc => Some(Action::Palette(PaletteAction::CloseLauncher)),
+        KeyCode::Up => Some(Action::Palette(PaletteAction::MoveLauncherUp)),
+        KeyCode::Down => Some(Action::Palette(PaletteAction::MoveLauncherDown)),
+        KeyCode::Enter => Some(Action::Palette(PaletteAction::ExecuteLauncherSelection)),
+        KeyCode::Backspace => Some(Action::Palette(PaletteAction::PaletteQueryBackspace)),
         KeyCode::Char(character) if key.modifiers == KeyModifiers::NONE => {
-            Some(Action::PaletteQueryPush(character))
+            Some(Action::Palette(PaletteAction::PaletteQueryPush(character)))
         }
         _ => None,
     }
@@ -105,9 +106,9 @@ fn window_chrome(key: KeyEvent) -> Option<Action> {
         return None;
     }
     match key.code {
-        KeyCode::Char('w' | 'W') => Some(Action::CloseWindow),
-        KeyCode::Char('m' | 'M') => Some(Action::MinimizeWindow),
-        KeyCode::Char('f' | 'F') => Some(Action::ToggleMaximizeWindow),
+        KeyCode::Char('w' | 'W') => Some(Action::Shell(ShellAction::CloseWindow)),
+        KeyCode::Char('m' | 'M') => Some(Action::Shell(ShellAction::MinimizeWindow)),
+        KeyCode::Char('f' | 'F') => Some(Action::Shell(ShellAction::ToggleMaximizeWindow)),
         _ => None,
     }
 }
@@ -128,7 +129,7 @@ mod tests {
     fn ctrl_g_begins_window_pick() {
         assert_eq!(
             match_global(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL)),
-            Some(Action::BeginWindowPick)
+            Some(Action::Shell(ShellAction::BeginWindowPick))
         );
     }
 
@@ -136,7 +137,7 @@ mod tests {
     fn pick_mode_digit_focuses_slot() {
         assert_eq!(
             match_window_pick(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::NONE)),
-            Some(Action::FocusWindowSlot(3))
+            Some(Action::Shell(ShellAction::FocusWindowSlot(3)))
         );
     }
 }

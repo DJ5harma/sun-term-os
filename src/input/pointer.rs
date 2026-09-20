@@ -4,7 +4,7 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Position;
 
 use crate::{
-    actions::Action,
+    actions::{Action, PaletteAction},
     app::AppState,
     domain::ApplicationKind,
     ui::{
@@ -24,7 +24,7 @@ enum PointerZone {
     Outside,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PointerDispatch {
     pub actions: Vec<Action>,
 }
@@ -67,23 +67,25 @@ pub fn dispatch_pointer(
     if matches!(zone, PointerZone::TopBar | PointerZone::BottomBar)
         && let Some(primary) = shell_action_at(mouse.column, mouse.row, geometry, state)
     {
+        let closes_launcher =
+            state.launcher_open && primary != Action::Palette(PaletteAction::ToggleLauncher);
         let mut actions = double_click.actions_after_primary(&mouse, primary);
-        if state.launcher_open && primary != Action::ToggleLauncher {
-            actions.insert(0, Action::CloseLauncher);
+        if closes_launcher {
+            actions.insert(0, Action::Palette(PaletteAction::CloseLauncher));
         }
         return PointerDispatch { actions };
     }
 
     if context.launcher_open && zone != PointerZone::Launcher {
         return PointerDispatch {
-            actions: vec![Action::CloseLauncher],
+            actions: vec![Action::Palette(PaletteAction::CloseLauncher)],
         };
     }
 
     if let Some(primary) = map.resolve(mouse.column, mouse.row) {
         let mut actions = double_click.actions_after_primary(&mouse, primary);
         if state.launcher_open {
-            actions.insert(0, Action::CloseLauncher);
+            actions.insert(0, Action::Palette(PaletteAction::CloseLauncher));
         }
         return PointerDispatch { actions };
     }
@@ -119,28 +121,27 @@ fn scroll_actions(
         MouseEventKind::ScrollDown => 1,
         _ => return None,
     };
-    let action = match zone {
+    match zone {
         PointerZone::Launcher if context.launcher_open => {
-            if delta < 0 {
-                Action::MoveLauncherUp
+            let action = if delta < 0 {
+                Action::Palette(PaletteAction::MoveLauncherUp)
             } else {
-                Action::MoveLauncherDown
-            }
+                Action::Palette(PaletteAction::MoveLauncherDown)
+            };
+            Some(vec![action])
         }
-        PointerZone::Desktop if context.focused_app == Some(ApplicationKind::FileManager) => {
-            Action::FileManagerPageScroll(delta)
-        }
-        PointerZone::Desktop if context.focused_app == Some(ApplicationKind::Processes) => {
-            Action::ProcessPageScroll(delta)
-        }
-        _ => return None,
-    };
-    Some(vec![action])
+        PointerZone::Desktop => context
+            .focused_app
+            .and_then(|kind| crate::apps::desktop_scroll_action(kind, delta))
+            .map(|action| vec![action]),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actions::{PaletteAction, ShellAction};
     use crossterm::event::KeyModifiers;
     use ratatui::layout::Rect;
 
@@ -177,7 +178,10 @@ mod tests {
             &InteractionMap::default(),
             &mut DoubleClickState::default(),
         );
-        assert_eq!(dispatch.actions, vec![Action::ToggleLauncher]);
+        assert_eq!(
+            dispatch.actions,
+            vec![Action::Palette(PaletteAction::ToggleLauncher)]
+        );
     }
 
     fn state_with_two_windows() -> AppState {
@@ -220,7 +224,10 @@ mod tests {
             &InteractionMap::default(),
             &mut DoubleClickState::default(),
         );
-        assert_eq!(dispatch.actions, vec![Action::FocusWindow(windows[0].id)]);
+        assert_eq!(
+            dispatch.actions,
+            vec![Action::Shell(ShellAction::FocusWindow(windows[0].id))]
+        );
     }
 
     #[test]
@@ -246,7 +253,10 @@ mod tests {
         );
         assert_eq!(
             dispatch.actions,
-            vec![Action::CloseLauncher, Action::FocusWindow(windows[0].id)]
+            vec![
+                Action::Palette(PaletteAction::CloseLauncher),
+                Action::Shell(ShellAction::FocusWindow(windows[0].id))
+            ]
         );
     }
 }

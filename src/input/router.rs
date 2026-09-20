@@ -2,42 +2,16 @@
 
 use crossterm::event::KeyEvent;
 
-use crate::{actions::Action, domain::ApplicationKind};
-
-use super::{
-    bindings::{match_global, match_modal, match_window_pick},
-    keybindings::{
-        desktop_key, file_manager_delete_confirm_key, file_manager_dialog_input_key,
-        file_manager_key, process_filter_key, process_manager_key,
-    },
-    normalize::normalize_key_event,
-    terminal_encode::encode_key,
+use crate::{
+    actions::Action,
+    app::AppState,
+    apps::{self, AppKeyResult, shell_keys},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusContext {
-    Launcher,
-    Window(ApplicationKind),
-    Chrome,
-}
+use super::bindings::{match_global, match_modal, match_window_pick};
+use super::normalize::normalize_key_event;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileManagerDialogMode {
-    None,
-    DeleteConfirm,
-    Rename,
-    Create,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct KeyInputContext {
-    pub focus: FocusContext,
-    pub window_pick_mode: bool,
-    pub process_filter_active: bool,
-    pub file_manager_dialog: FileManagerDialogMode,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum KeyDispatch {
     Action(Action),
     Terminal(Vec<u8>),
@@ -45,14 +19,14 @@ pub enum KeyDispatch {
     Consumed,
 }
 
-pub fn dispatch_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
+pub fn dispatch_key(key: KeyEvent, state: &AppState) -> KeyDispatch {
     if !key.is_press() && !key.is_repeat() {
         return KeyDispatch::Consumed;
     }
 
     let normalized = normalize_key_event(key);
 
-    if context.window_pick_mode {
+    if state.window_pick_mode {
         return match match_window_pick(normalized) {
             Some(action) => KeyDispatch::Action(action),
             None => KeyDispatch::Consumed,
@@ -63,115 +37,89 @@ pub fn dispatch_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
         return KeyDispatch::Action(action);
     }
 
-    match context.focus {
-        FocusContext::Launcher => match match_modal(normalized) {
+    if state.launcher_open {
+        return match match_modal(normalized) {
             Some(action) => KeyDispatch::Action(action),
             None => KeyDispatch::Consumed,
-        },
-        FocusContext::Window(ApplicationKind::FileManager) => {
-            let dispatch = match context.file_manager_dialog {
-                FileManagerDialogMode::DeleteConfirm => file_manager_delete_confirm_key(normalized),
-                FileManagerDialogMode::Rename | FileManagerDialogMode::Create => {
-                    file_manager_dialog_input_key(normalized)
-                }
-                FileManagerDialogMode::None => file_manager_key(normalized),
-            };
-            match dispatch {
-                Some(action) => KeyDispatch::Action(action),
-                None => KeyDispatch::Consumed,
-            }
-        }
-        FocusContext::Window(ApplicationKind::Terminal) => {
-            if let Some(bytes) = encode_key(normalized) {
-                KeyDispatch::Terminal(bytes)
-            } else {
-                KeyDispatch::Consumed
-            }
-        }
-        FocusContext::Window(ApplicationKind::Processes) => {
-            if context.process_filter_active {
-                match process_filter_key(normalized) {
-                    Some(action) => KeyDispatch::Action(action),
-                    None => KeyDispatch::Consumed,
-                }
-            } else {
-                match process_manager_key(normalized) {
-                    Some(action) => KeyDispatch::Action(action),
-                    None => KeyDispatch::Consumed,
-                }
-            }
-        }
-        FocusContext::Window(ApplicationKind::SystemInfo) | FocusContext::Chrome => {
-            match desktop_key(normalized) {
-                Some(action) => KeyDispatch::Action(action),
-                None => KeyDispatch::Consumed,
-            }
-        }
+        };
+    }
+
+    let dispatch = if let Some(window) = state.focused_window() {
+        apps::dispatch_key(window.application, normalized, state)
+    } else {
+        shell_keys::dispatch_key(normalized, state)
+    };
+
+    match dispatch {
+        AppKeyResult::Action(action) => KeyDispatch::Action(action),
+        AppKeyResult::Terminal(bytes) => KeyDispatch::Terminal(bytes),
+        AppKeyResult::Consumed => KeyDispatch::Consumed,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actions::{FileManagerAction, ShellAction};
+    use crate::app::reducer::reduce;
+    use crate::app::{AppState, ApplicationKind};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    fn fm_ctx() -> KeyInputContext {
-        KeyInputContext {
-            focus: FocusContext::Window(ApplicationKind::FileManager),
-            window_pick_mode: false,
-            process_filter_active: false,
-            file_manager_dialog: FileManagerDialogMode::None,
-        }
+    fn state_with_file_manager() -> AppState {
+        let mut state = AppState::default();
+        reduce(
+            &mut state,
+            Action::Shell(ShellAction::OpenApplication(ApplicationKind::FileManager)),
+        );
+        state
     }
 
-    fn terminal_ctx() -> KeyInputContext {
-        KeyInputContext {
-            focus: FocusContext::Window(ApplicationKind::Terminal),
-            window_pick_mode: false,
-            process_filter_active: false,
-            file_manager_dialog: FileManagerDialogMode::None,
-        }
-    }
-
-    fn pick_ctx() -> KeyInputContext {
-        KeyInputContext {
-            focus: FocusContext::Window(ApplicationKind::Terminal),
-            window_pick_mode: true,
-            process_filter_active: false,
-            file_manager_dialog: FileManagerDialogMode::None,
-        }
+    fn state_with_terminal() -> AppState {
+        let mut state = AppState::default();
+        reduce(
+            &mut state,
+            Action::Shell(ShellAction::OpenApplication(ApplicationKind::Terminal)),
+        );
+        state
     }
 
     #[test]
     fn ctrl_g_starts_pick_from_terminal() {
         let key = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL);
         assert_eq!(
-            dispatch_key(key, &terminal_ctx()),
-            KeyDispatch::Action(Action::BeginWindowPick)
+            dispatch_key(key, &state_with_terminal()),
+            KeyDispatch::Action(Action::Shell(ShellAction::BeginWindowPick))
         );
     }
 
     #[test]
     fn digit_in_pick_mode_focuses_from_file_manager() {
+        let mut state = state_with_file_manager();
+        state.window_pick_mode = true;
         let key = KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE);
         assert_eq!(
-            dispatch_key(key, &pick_ctx()),
-            KeyDispatch::Action(Action::FocusWindowSlot(2))
+            dispatch_key(key, &state),
+            KeyDispatch::Action(Action::Shell(ShellAction::FocusWindowSlot(2)))
         );
     }
 
     #[test]
     fn bare_digit_does_not_focus_without_pick() {
         let key = KeyEvent::new(KeyCode::Char('8'), KeyModifiers::NONE);
-        assert_eq!(dispatch_key(key, &fm_ctx()), KeyDispatch::Consumed);
+        assert_eq!(
+            dispatch_key(key, &state_with_file_manager()),
+            KeyDispatch::Consumed
+        );
     }
 
     #[test]
     fn file_manager_plain_tab_toggles_pane() {
         let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
         assert_eq!(
-            dispatch_key(key, &fm_ctx()),
-            KeyDispatch::Action(Action::FileManagerTogglePane)
+            dispatch_key(key, &state_with_file_manager()),
+            KeyDispatch::Action(Action::FileManager(
+                FileManagerAction::FileManagerTogglePane
+            ))
         );
     }
 
@@ -179,23 +127,29 @@ mod tests {
     fn shift_r_begins_rename_in_file_manager() {
         let key = KeyEvent::new(KeyCode::Char('R'), KeyModifiers::SHIFT);
         assert_eq!(
-            dispatch_key(key, &fm_ctx()),
-            KeyDispatch::Action(Action::FileManagerBeginRename)
+            dispatch_key(key, &state_with_file_manager()),
+            KeyDispatch::Action(Action::FileManager(
+                FileManagerAction::FileManagerBeginRename
+            ))
         );
     }
 
     #[test]
     fn enter_in_rename_dialog_commits() {
-        let ctx = KeyInputContext {
-            focus: FocusContext::Window(ApplicationKind::FileManager),
-            window_pick_mode: false,
-            process_filter_active: false,
-            file_manager_dialog: FileManagerDialogMode::Rename,
-        };
+        let mut state = state_with_file_manager();
+        let window_id = state.focused_window().unwrap().id;
+        if let Some(manager) = state.file_manager_mut(window_id) {
+            manager.dialog = crate::app::state::FileManagerDialog::Rename {
+                path: std::path::PathBuf::from("/tmp/x"),
+                input: "y".to_owned(),
+            };
+        }
         let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(
-            dispatch_key(key, &ctx),
-            KeyDispatch::Action(Action::FileManagerDialogCommit)
+            dispatch_key(key, &state),
+            KeyDispatch::Action(Action::FileManager(
+                FileManagerAction::FileManagerDialogCommit
+            ))
         );
     }
 }
