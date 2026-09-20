@@ -1,5 +1,6 @@
 mod async_completion;
 mod file_manager;
+mod home_screen;
 mod launcher;
 mod machines;
 mod palette;
@@ -26,6 +27,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::Settings(action) => settings::reduce(state, action),
         Action::Machines(action) => machines::reduce(state, action),
         Action::Launcher(action) => launcher::reduce(state, action),
+        Action::HomeScreen(action) => home_screen::reduce(state, action),
         Action::TextViewer(action) => text_viewer::reduce(state, action),
         Action::Services(action) => services::reduce(state, action),
         Action::Async(action) => async_completion::reduce(state, action),

@@ -1,6 +1,7 @@
 //! Built-in applications: lifecycle, render, input, effects, and palette contributions.
 
 mod file_manager;
+pub mod home_screen;
 pub(crate) mod launcher;
 mod launcher_catalog;
 mod machines;

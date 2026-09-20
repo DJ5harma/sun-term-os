@@ -4,8 +4,9 @@ mod watches;
 
 pub use effects::EffectExecutor;
 pub use sync::{
-    sync_file_manager_visible_rows, sync_launcher_visible_rows, sync_palette_selection,
-    sync_process_manager_visible_rows, sync_services_visible_rows, sync_text_viewer_visible_rows,
+    sync_file_manager_visible_rows, sync_home_screen_layout, sync_launcher_visible_rows,
+    sync_palette_selection, sync_process_manager_visible_rows, sync_services_visible_rows,
+    sync_text_viewer_visible_rows,
 };
 
 use std::{thread, time::Duration};
@@ -81,6 +82,7 @@ impl AppRuntime {
                 ratatui::layout::Rect::new(0, 0, size.width, size.height),
                 &self.state,
             );
+            sync_home_screen_layout(&mut self.state, &self.geometry);
             sync_file_manager_visible_rows(&mut self.state, &self.geometry);
             sync_process_manager_visible_rows(&mut self.state, &self.geometry);
             sync_launcher_visible_rows(&mut self.state, &self.geometry);

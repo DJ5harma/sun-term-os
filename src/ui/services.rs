@@ -11,6 +11,8 @@ use super::{interaction::InteractionMap, theme};
 pub fn render(
     frame: &mut Frame,
     area: Rect,
+    state: &crate::app::AppState,
+    window_id: u64,
     view: &ServicesState,
     _interactions: &mut InteractionMap,
 ) {
@@ -19,6 +21,10 @@ pub fn render(
     } else {
         " ↑↓ · / filter · s start · x stop · r restart ".to_owned()
     };
+    if let Some(hint) = crate::app::offline::window_machine_offline_hint(state, window_id) {
+        frame.render_widget(Paragraph::new(hint).style(theme::muted()), area);
+        return;
+    }
     match &view.listing {
         Loadable::Loading => frame.render_widget(Paragraph::new("Loading services…"), area),
         Loadable::Failed(error) => frame.render_widget(

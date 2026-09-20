@@ -56,17 +56,25 @@ pub(super) fn reduce(state: &mut AppState, action: AsyncAction) -> Vec<Effect> {
             }
         }
         AsyncAction::DirectoryReady(window_id, result) => {
+            let sort = state
+                .file_managers
+                .get(&window_id)
+                .map(|manager| manager.sort)
+                .unwrap_or_default();
+            let listing = match result {
+                Ok(listing) => {
+                    let sorted = crate::app::file_manager::apply_sorted_listing(listing, sort);
+                    Loadable::Ready(sorted)
+                }
+                Err(error) => Loadable::Failed(crate::app::offline::enrich_load_error(
+                    state, window_id, &error,
+                )),
+            };
             if let Some(manager) = state.file_managers.get_mut(&window_id) {
-                manager.listing = match result {
-                    Ok(listing) => {
-                        manager.current_path = listing.path.clone();
-                        Loadable::Ready(crate::app::file_manager::apply_sorted_listing(
-                            listing,
-                            manager.sort,
-                        ))
-                    }
-                    Err(error) => Loadable::Failed(error),
-                };
+                if let Loadable::Ready(sorted) = &listing {
+                    manager.current_path = sorted.path.clone();
+                }
+                manager.listing = listing;
                 manager.clamp_selection();
             }
         }

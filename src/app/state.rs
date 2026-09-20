@@ -20,6 +20,7 @@ pub enum FileManagerDialog {
     Create { kind: CreateKind, input: String },
     GoToPath { input: String },
 }
+pub use super::home_screen::HomeScreenState;
 pub use super::launcher::LauncherState;
 pub use super::machines::MachinesState;
 pub use super::process_manager::ProcessManagerState;
@@ -129,6 +130,7 @@ pub struct AppState {
     pub should_quit: bool,
     pub config: Config,
     pub settings_views: HashMap<WindowId, SettingsState>,
+    pub home_screens: Vec<HomeScreenState>,
 }
 
 impl Default for AppState {
@@ -186,6 +188,9 @@ impl AppState {
             should_quit: false,
             config,
             settings_views: HashMap::new(),
+            home_screens: (0..workspace_count)
+                .map(|_| HomeScreenState::default())
+                .collect(),
         }
     }
 
@@ -450,6 +455,11 @@ impl AppState {
     pub(crate) fn init_text_viewer(&mut self, window_id: WindowId, path: PathBuf) {
         self.text_viewers
             .insert(window_id, TextViewerState::new(path));
+    }
+
+    pub(crate) fn init_text_viewer_empty(&mut self, window_id: WindowId) {
+        self.text_viewers
+            .insert(window_id, TextViewerState::new_empty());
     }
 
     pub(crate) fn remove_text_viewer(&mut self, window_id: WindowId) {

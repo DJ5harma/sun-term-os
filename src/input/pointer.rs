@@ -32,13 +32,17 @@ pub struct PointerDispatch {
 pub struct PointerContext {
     pub launcher_open: bool,
     pub focused_app: Option<ApplicationKind>,
+    pub home_screen_active: bool,
 }
 
 impl PointerContext {
     pub fn from_state(state: &AppState) -> Self {
         Self {
             launcher_open: state.launcher_open,
-            focused_app: state.focused_window().map(|window| window.application),
+            focused_app: state
+                .visible_focus_window()
+                .map(|window| window.application),
+            home_screen_active: state.shows_home_screen(),
         }
     }
 }
@@ -130,10 +134,15 @@ fn scroll_actions(
             };
             Some(vec![action])
         }
-        PointerZone::Desktop => context
-            .focused_app
-            .and_then(|kind| crate::apps::desktop_scroll_action(kind, delta))
-            .map(|action| vec![action]),
+        PointerZone::Desktop => {
+            if context.home_screen_active {
+                return Some(vec![crate::apps::home_screen::desktop_scroll_action(delta)]);
+            }
+            context
+                .focused_app
+                .and_then(|kind| crate::apps::desktop_scroll_action(kind, delta))
+                .map(|action| vec![action])
+        }
         _ => None,
     }
 }

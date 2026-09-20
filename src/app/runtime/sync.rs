@@ -1,6 +1,6 @@
 use crate::{
     app::{
-        ApplicationKind, palette, process_manager,
+        ApplicationKind, home_screen::entries, palette, process_manager,
         state::{AppState, Loadable},
     },
     ui,
@@ -16,6 +16,22 @@ fn list_rows_in_window(
         .filter(|window| window.application == kind)?;
     let inner = ui::windows::content_inner(geometry.desktop, window, state);
     Some(inner.height.saturating_sub(4).max(1) as usize)
+}
+
+pub fn sync_home_screen_layout(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {
+    if !state.shows_home_screen() {
+        return;
+    }
+    let mode = state
+        .home_screen_mode()
+        .unwrap_or(crate::app::home_screen::HomeScreenMode::EmptyWorkspace);
+    // mode is always Some when shows_home_screen(); unwrap_or is a fallback only.
+    let list = entries(&state.config);
+    let layout = ui::home_screen::layout(geometry.desktop, list.len(), mode);
+    let home = state.home_screen_mut();
+    home.columns = layout.columns;
+    home.tile_rows_visible = layout.tile_rows_visible;
+    home.clamp_selection(list.len(), layout.total_tile_rows);
 }
 
 pub fn sync_palette_selection(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {

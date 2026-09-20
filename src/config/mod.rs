@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+pub mod home;
 pub mod launcher;
 pub mod machines;
 pub mod paths;
@@ -30,6 +31,8 @@ pub struct Config {
     pub machines: Vec<machines::MachineProfile>,
     #[serde(default)]
     pub launcher: launcher::LauncherConfig,
+    #[serde(default)]
+    pub home: home::HomeConfig,
 }
 
 impl Default for Config {
@@ -41,6 +44,7 @@ impl Default for Config {
             session: SessionConfig::default(),
             machines: Vec::new(),
             launcher: launcher::LauncherConfig::default(),
+            home: home::HomeConfig::default(),
         }
     }
 }
@@ -64,6 +68,7 @@ impl Config {
             session: self.session,
             machines: self.machines,
             launcher: self.launcher,
+            home: self.home,
         }
     }
 }
@@ -112,6 +117,7 @@ mod tests {
             session: SessionConfig::default(),
             machines: Vec::new(),
             launcher: launcher::LauncherConfig::default(),
+            home: home::HomeConfig::default(),
         }
         .normalized();
         assert_eq!(config.refresh_interval_secs, MIN_REFRESH_SECS);

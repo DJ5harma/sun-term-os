@@ -19,7 +19,7 @@ use super::{
 pub fn render(
     frame: &mut Frame,
     area: Rect,
-    _state: &AppState,
+    state: &AppState,
     window_id: u64,
     manager: &ProcessManagerState,
     interactions: &mut InteractionMap,
@@ -47,6 +47,11 @@ pub fn render(
     ])
     .split(area);
     frame.render_widget(Paragraph::new(help).style(theme::muted()), chunks[0]);
+
+    if let Some(hint) = crate::app::offline::window_machine_offline_hint(state, window_id) {
+        frame.render_widget(Paragraph::new(hint).style(theme::muted()), chunks[1]);
+        return;
+    }
 
     match &manager.listing {
         Loadable::Loading => {

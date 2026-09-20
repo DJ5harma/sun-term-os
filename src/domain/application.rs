@@ -1,7 +1,7 @@
 /// Identifier for a built-in application window.
 ///
 /// When adding a variant, register the app in [`crate::apps`] (`BUILT_INS`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ApplicationKind {
     Terminal,
     FileManager,

@@ -5,6 +5,7 @@ pub mod app_launcher;
 mod bottom_bar;
 mod desktop;
 pub mod file_manager;
+pub mod home_screen;
 pub mod launcher;
 pub mod machines;
 pub(crate) mod processes;
