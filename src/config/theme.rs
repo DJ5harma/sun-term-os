@@ -1,17 +1,36 @@
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThemeConfig {
-    /// Background `#rrggbb`
     #[serde(default)]
     pub background: Option<String>,
     #[serde(default)]
     pub surface: Option<String>,
     #[serde(default)]
-    pub accent: Option<String>,
+    pub surface_alt: Option<String>,
     #[serde(default)]
     pub text: Option<String>,
+    #[serde(default)]
+    pub muted: Option<String>,
+    #[serde(default)]
+    pub accent: Option<String>,
+    #[serde(default)]
+    pub red: Option<String>,
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            background: Some("#0d1014".to_owned()),
+            surface: Some("#161b22".to_owned()),
+            surface_alt: Some("#1f2731".to_owned()),
+            text: Some("#e0e5ec".to_owned()),
+            muted: Some("#7e8c9d".to_owned()),
+            accent: Some("#f3b84c".to_owned()),
+            red: Some("#ed7474".to_owned()),
+        }
+    }
 }
 
 pub fn parse_hex_color(hex: &str) -> Option<Color> {

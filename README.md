@@ -1,4 +1,4 @@
-# TDE
+# sun-term-os
 
 A lightweight, terminal-native desktop environment written in Rust.
 
@@ -13,38 +13,15 @@ A lightweight, terminal-native desktop environment written in Rust.
 cargo run
 ```
 
-Optional config path:
+Configuration lives in a single file: `$XDG_CONFIG_HOME/sun-term-os/config.toml` (or `~/.config/sun-term-os/config.toml`). Edit it in the **Settings** app (command palette → Settings) and press **s** or choose **Save settings to disk** — no CLI flags.
 
-```bash
-cargo run -- --config /path/to/config.toml
-```
-
-Default config file: `$XDG_CONFIG_HOME/tde/config.toml` or `~/.config/tde/config.toml`.
-
-Example:
-
-```toml
-refresh_interval_secs = 5
-workspace_count = 4
-
-# Optional theme (hex colors)
-# theme.background = "#0d1014"
-# theme.surface = "#161b22"
-# theme.accent = "#f3b84c"
-# theme.text = "#e0e5ec"
-
-# Session restore (default: ~/.config/tde/session.toml)
-# session.restore_on_start = true
-# session.save_on_exit = true
-```
-
-`refresh_interval_secs` is clamped to 1–300. `workspace_count` is clamped to 1–9 (switch with F1–Fn).
+`refresh_interval_secs` is clamped to 1–300. `workspace_count` is clamped to 1–9 (switch with F1–Fn); change workspace count in the config file if needed.
 
 Release build:
 
 ```bash
 cargo build --release
-./target/release/tde
+./target/release/sun-term-os
 ```
 
 ## Development
@@ -62,6 +39,7 @@ cargo test
 |--------|------|
 | Quit | `Ctrl+C` or `q` (when not in a terminal) |
 | Command palette | `Alt+P` or click **⊞ Palette** (type to filter, ↑↓, Enter; `!cmd` runs in a new terminal) |
+| Settings | Palette → **Settings** · pick a **color theme** preset · `s` to save |
 | New terminal | `t` |
 | File manager | `f` |
 | Process manager | `p` |

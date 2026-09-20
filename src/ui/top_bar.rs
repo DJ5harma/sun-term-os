@@ -16,7 +16,7 @@ use super::{
 pub fn render(frame: &mut Frame, layout: TopBarGeometry, state: &AppState) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(" TDE ", theme::active()),
+            Span::styled(" sun-term-os ", theme::active()),
             Span::styled("desktop", Style::default().fg(theme::MUTED)),
         ])),
         layout.brand,

@@ -6,6 +6,7 @@ mod desktop;
 pub mod file_manager;
 pub(crate) mod launcher;
 pub(crate) mod processes;
+pub mod settings;
 pub mod system_info;
 pub mod terminal;
 pub(crate) mod theme;

@@ -13,7 +13,7 @@ pub fn restore_effects(state: &mut AppState, config: &SessionConfig) -> Vec<Effe
     if !config.restore_on_start {
         return Vec::new();
     }
-    let path = session::session_path();
+    let path = crate::config::default_session_path();
     let file = match session::load_session(&path) {
         Ok(session) => session,
         Err(error) => {
@@ -61,7 +61,7 @@ pub fn save_if_configured(state: &AppState, config: &SessionConfig) {
         return;
     }
     let file = capture_session(state);
-    let _ = session::save_session(&session::session_path(), &file);
+    let _ = session::save_session(&crate::config::default_session_path(), &file);
 }
 
 fn capture_session(state: &AppState) -> session::SessionFile {
@@ -89,4 +89,3 @@ fn capture_session(state: &AppState) -> session::SessionFile {
             .collect(),
     }
 }
-

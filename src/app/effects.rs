@@ -6,6 +6,7 @@ use crate::domain::WindowId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {
     RefreshCapabilities,
+    PersistConfig,
     Terminal(TerminalEffect),
     FileManager(FileManagerEffect),
     Process(ProcessEffect),

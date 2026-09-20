@@ -7,4 +7,5 @@ pub enum ApplicationKind {
     FileManager,
     SystemInfo,
     Processes,
+    Settings,
 }

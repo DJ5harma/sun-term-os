@@ -5,8 +5,10 @@ pub mod process_manager;
 pub(crate) mod reducer;
 pub mod runtime;
 pub(crate) mod session;
+pub mod settings;
 pub mod state;
 pub mod terminal_view;
+pub(crate) mod theme_presets;
 
 pub use crate::domain::{ApplicationKind, Window, WindowState};
 pub use runtime::AppRuntime;

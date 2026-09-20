@@ -21,6 +21,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
              Open the command palette (⊞ Apps or Alt+P) to search commands.\n\
              Press t for a terminal window.\n\
              Press f for the file manager · p for processes · s for system info.\n\
+             Open Settings from the palette to change theme and behavior.\n\
              In the file manager, o opens the selection in a new terminal.\n\
              Focus windows: {WINDOW_FOCUS_HINT} (bar order) or click bar tabs · workspaces: {WORKSPACE_HINT}."
         );
