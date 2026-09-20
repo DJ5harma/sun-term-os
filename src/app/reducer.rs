@@ -2,7 +2,14 @@ use std::path::PathBuf;
 
 use crate::{
     actions::Action,
-    app::{AppState, ApplicationKind, Loadable, TerminalStatus, Window, WindowState},
+    app::{
+        AppState, ApplicationKind, FileManagerFocus, Loadable, TerminalStatus, Window,
+        WindowState,
+        file_manager::{
+            DisplayRowKind, apply_sorted_listing, display_row_count, display_row_kind,
+            ensure_selection_visible,
+        },
+    },
     machine::{FileEntryKind, local::default_start_path},
 };
 
@@ -79,25 +86,92 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::MoveFileSelection(offset) => {
             if let Some(window_id) = focused_file_manager_window(state)
                 && let Some(manager) = state.file_manager_mut(window_id)
-                && let Loadable::Ready(listing) = &manager.listing
-                && !listing.entries.is_empty()
             {
-                let count = listing.entries.len();
-                let next = manager.selected_index as i32 + offset;
-                manager.selected_index = next.clamp(0, count as i32 - 1) as usize;
+                match manager.focus {
+                    FileManagerFocus::Places if !manager.places.is_empty() => {
+                        let next = manager.selected_place as i32 + offset;
+                        manager.selected_place =
+                            next.clamp(0, manager.places.len() as i32 - 1) as usize;
+                    }
+                    FileManagerFocus::List => {
+                        if let Loadable::Ready(listing) = &manager.listing {
+                            let count = display_row_count(listing, &manager.current_path);
+                            if count > 0 {
+                                let next = manager.selected_index as i32 + offset;
+                                manager.selected_index = next.clamp(0, count as i32 - 1) as usize;
+                                ensure_selection_visible(
+                                    &mut manager.selected_index,
+                                    &mut manager.scroll_offset,
+                                    manager.visible_rows,
+                                    count,
+                                );
+                            }
+                        }
+                    }
+                    FileManagerFocus::Places => {}
+                }
             }
         }
         Action::OpenSelectedEntry => return open_selected_entry(state),
-        Action::FileManagerParent => {
+        Action::FileManagerGoUp => return file_manager_go_up(state),
+        Action::FileManagerGoHome => {
+            if let Some(window_id) = focused_file_manager_window(state) {
+                let path = default_start_path();
+                return navigate_file_manager(state, window_id, path, true);
+            }
+        }
+        Action::FileManagerGoBack => {
             if let Some(window_id) = focused_file_manager_window(state)
-                && let Some(manager) = state.file_manager(window_id)
+                && let Some(manager) = state.file_manager_mut(window_id)
+                && manager.history_index > 0
             {
-                if let Some(parent) = manager.current_path.parent()
-                    && parent != manager.current_path.as_path()
-                {
-                    return navigate_file_manager(state, window_id, parent.to_path_buf());
+                manager.history_index -= 1;
+                let path = manager.history[manager.history_index].clone();
+                return navigate_file_manager(state, window_id, path, false);
+            }
+        }
+        Action::FileManagerTogglePane => {
+            if let Some(window_id) = focused_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+            {
+                manager.focus = match manager.focus {
+                    FileManagerFocus::Places => FileManagerFocus::List,
+                    FileManagerFocus::List => FileManagerFocus::Places,
+                };
+            }
+        }
+        Action::FileManagerPageScroll(pages) => {
+            if let Some(window_id) = focused_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+                && let Loadable::Ready(listing) = &manager.listing
+            {
+                let count = display_row_count(listing, &manager.current_path);
+                let delta = pages * manager.visible_rows.max(1) as i32;
+                let next = manager.selected_index as i32 + delta;
+                manager.selected_index = next.clamp(0, count.saturating_sub(1) as i32) as usize;
+                ensure_selection_visible(
+                    &mut manager.selected_index,
+                    &mut manager.scroll_offset,
+                    manager.visible_rows,
+                    count,
+                );
+            }
+        }
+        Action::FileManagerSetSort(column) => {
+            if let Some(window_id) = focused_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+            {
+                if manager.sort.column == column {
+                    manager.sort.ascending = !manager.sort.ascending;
+                } else {
+                    manager.sort.column = column;
+                    manager.sort.ascending = true;
                 }
-                state.status = "Already at the root directory".to_owned();
+                if let Loadable::Ready(listing) = &manager.listing {
+                    let sorted = apply_sorted_listing(listing.clone(), manager.sort);
+                    manager.listing = Loadable::Ready(sorted);
+                }
+                manager.clamp_selection();
             }
         }
         Action::ToggleFileManagerHidden => {
@@ -106,17 +180,36 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             {
                 manager.show_hidden = !manager.show_hidden;
                 let path = manager.current_path.clone();
-                return navigate_file_manager(state, window_id, path);
+                return navigate_file_manager(state, window_id, path, false);
             }
         }
         Action::ReloadFileManager => return reload_focused_file_manager(state),
         Action::SelectFileManagerRow(window_id, index) => {
             if focused_file_manager_window(state) == Some(window_id)
                 && let Some(manager) = state.file_manager_mut(window_id)
-                && let Loadable::Ready(listing) = &manager.listing
-                && index < listing.entries.len()
             {
-                manager.selected_index = index;
+                manager.focus = FileManagerFocus::List;
+                if let Loadable::Ready(listing) = &manager.listing {
+                    let count = display_row_count(listing, &manager.current_path);
+                    if index < count {
+                        manager.selected_index = index;
+                        ensure_selection_visible(
+                            &mut manager.selected_index,
+                            &mut manager.scroll_offset,
+                            manager.visible_rows,
+                            count,
+                        );
+                    }
+                }
+            }
+        }
+        Action::SelectFileManagerPlace(window_id, index) => {
+            if focused_file_manager_window(state) == Some(window_id)
+                && let Some(manager) = state.file_manager(window_id)
+                && let Some(place) = manager.places.get(index)
+            {
+                let path = place.path.clone();
+                return navigate_file_manager(state, window_id, path, true);
             }
         }
     }
@@ -146,15 +239,45 @@ fn open_application_effects(
     }
 }
 
-fn navigate_file_manager(state: &mut AppState, window_id: u64, path: PathBuf) -> Vec<Effect> {
+fn navigate_file_manager(
+    state: &mut AppState,
+    window_id: u64,
+    path: PathBuf,
+    push_history: bool,
+) -> Vec<Effect> {
     if let Some(manager) = state.file_manager_mut(window_id) {
         manager.current_path = path.clone();
         manager.listing = Loadable::Loading;
         manager.selected_index = 0;
+        manager.scroll_offset = 0;
+        if push_history {
+            push_file_manager_history(manager, path.clone());
+        }
         vec![Effect::ReadDirectory(window_id, path)]
     } else {
         Vec::new()
     }
+}
+
+fn push_file_manager_history(manager: &mut crate::app::state::FileManagerState, path: PathBuf) {
+    if manager.history.get(manager.history_index) == Some(&path) {
+        return;
+    }
+    manager.history.truncate(manager.history_index + 1);
+    manager.history.push(path);
+    manager.history_index = manager.history.len() - 1;
+}
+
+fn file_manager_go_up(state: &mut AppState) -> Vec<Effect> {
+    if let Some(window_id) = focused_file_manager_window(state)
+        && let Some(manager) = state.file_manager(window_id)
+        && let Some(parent) = manager.current_path.parent()
+        && parent != manager.current_path.as_path()
+    {
+        return navigate_file_manager(state, window_id, parent.to_path_buf(), true);
+    }
+    state.status = "Already at the root directory".to_owned();
+    Vec::new()
 }
 
 fn reload_focused_file_manager(state: &mut AppState) -> Vec<Effect> {
@@ -163,7 +286,7 @@ fn reload_focused_file_manager(state: &mut AppState) -> Vec<Effect> {
     {
         let path = manager.current_path.clone();
         state.status = format!("Reading {}", path.display());
-        return navigate_file_manager(state, window_id, path);
+        return navigate_file_manager(state, window_id, path, false);
     }
     Vec::new()
 }
@@ -175,17 +298,34 @@ fn open_selected_entry(state: &mut AppState) -> Vec<Effect> {
     let Some(manager) = state.file_manager(window_id) else {
         return Vec::new();
     };
+    if manager.focus == FileManagerFocus::Places {
+        if let Some(place) = manager.places.get(manager.selected_place) {
+            let path = place.path.clone();
+            return navigate_file_manager(state, window_id, path, true);
+        }
+        return Vec::new();
+    }
     let Loadable::Ready(listing) = &manager.listing else {
         return Vec::new();
     };
-    let Some(entry) = listing.entries.get(manager.selected_index) else {
-        return Vec::new();
-    };
-    if entry.kind == FileEntryKind::Directory {
-        let path = listing.path.join(&entry.name);
-        return navigate_file_manager(state, window_id, path);
+    match display_row_kind(&manager.current_path, listing, manager.selected_index) {
+        Some(DisplayRowKind::Parent) => return file_manager_go_up(state),
+        Some(DisplayRowKind::Entry) => {
+            let Some(entry) = crate::app::file_manager::display_entry(
+                &manager.current_path,
+                listing,
+                manager.selected_index,
+            ) else {
+                return Vec::new();
+            };
+            if entry.kind == FileEntryKind::Directory {
+                let path = listing.path.join(&entry.name);
+                return navigate_file_manager(state, window_id, path, true);
+            }
+            state.status = format!("{} · read-only (open with another app later)", entry.name);
+        }
+        None => {}
     }
-    state.status = format!("{} is a file · read-only browser", entry.name);
     Vec::new()
 }
 
@@ -338,20 +478,14 @@ mod tests {
             Action::OpenApplication(ApplicationKind::FileManager),
         );
         let window_id = state.current_workspace().windows[0].id;
-        state.file_managers.insert(
-            window_id,
-            crate::app::state::FileManagerState {
-                current_path: PathBuf::from("/tmp/nested"),
-                show_hidden: false,
-                selected_index: 0,
-                listing: Loadable::Ready(crate::machine::DirectoryListing {
-                    path: PathBuf::from("/tmp/nested"),
-                    entries: vec![],
-                }),
-            },
-        );
+        let mut manager = crate::app::state::FileManagerState::new(PathBuf::from("/tmp/nested"));
+        manager.listing = Loadable::Ready(crate::machine::DirectoryListing {
+            path: PathBuf::from("/tmp/nested"),
+            entries: vec![],
+        });
+        state.file_managers.insert(window_id, manager);
 
-        let effects = reduce(&mut state, Action::FileManagerParent);
+        let effects = reduce(&mut state, Action::FileManagerGoUp);
         assert_eq!(effects.len(), 1);
         assert!(matches!(
             &effects[0],
@@ -367,31 +501,26 @@ mod tests {
             Action::OpenApplication(ApplicationKind::FileManager),
         );
         let window_id = state.current_workspace().windows[0].id;
-        state.file_managers.insert(
-            window_id,
-            crate::app::state::FileManagerState {
-                current_path: PathBuf::from("/"),
-                show_hidden: false,
-                selected_index: 0,
-                listing: Loadable::Ready(crate::machine::DirectoryListing {
-                    path: PathBuf::from("/"),
-                    entries: vec![
-                        crate::machine::FileEntry {
-                            name: "a".to_owned(),
-                            kind: FileEntryKind::File,
-                            size_bytes: None,
-                            modified_secs: None,
-                        },
-                        crate::machine::FileEntry {
-                            name: "b".to_owned(),
-                            kind: FileEntryKind::File,
-                            size_bytes: None,
-                            modified_secs: None,
-                        },
-                    ],
-                }),
-            },
-        );
+        let mut manager = crate::app::state::FileManagerState::new(PathBuf::from("/"));
+        manager.visible_rows = 20;
+        manager.listing = Loadable::Ready(crate::machine::DirectoryListing {
+            path: PathBuf::from("/"),
+            entries: vec![
+                crate::machine::FileEntry {
+                    name: "a".to_owned(),
+                    kind: FileEntryKind::File,
+                    size_bytes: None,
+                    modified_secs: None,
+                },
+                crate::machine::FileEntry {
+                    name: "b".to_owned(),
+                    kind: FileEntryKind::File,
+                    size_bytes: None,
+                    modified_secs: None,
+                },
+            ],
+        });
+        state.file_managers.insert(window_id, manager);
 
         reduce(&mut state, Action::MoveFileSelection(5));
         assert_eq!(state.file_manager(window_id).unwrap().selected_index, 1);

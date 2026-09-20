@@ -9,6 +9,14 @@ use crate::app::{AppState, ApplicationKind, Loadable, TerminalStatus, Window};
 
 use super::theme;
 
+/// Content area inside the window chrome block (matches [render]).
+pub(crate) fn content_inner(area: Rect) -> Rect {
+    Block::default()
+        .title(" window ")
+        .borders(Borders::ALL)
+        .inner(area)
+}
+
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window) {
     let block = Block::default()
         .title(format!(

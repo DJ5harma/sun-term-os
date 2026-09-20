@@ -1,9 +1,9 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use crate::{
-    app::{AppState, Loadable},
+    app::AppState,
     domain::{ApplicationKind, WindowId},
-    ui::{bottom_bar, file_manager, top_bar},
+    ui::{bottom_bar, file_manager, top_bar, windows},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -15,8 +15,10 @@ pub struct UiGeometry {
     pub launcher_button: Rect,
     pub launcher_targets: Vec<(ApplicationKind, Rect)>,
     pub window_targets: Vec<(WindowId, Rect)>,
-    pub file_manager_row_targets: Vec<(WindowId, Vec<(usize, Rect)>)>,
+    pub file_manager_hit_targets: Vec<(WindowId, file_manager::FileManagerHitTargets)>,
 }
+
+type FileManagerGeometryTargets = Vec<(WindowId, file_manager::FileManagerHitTargets)>;
 
 /// Vertical chrome: top bar (workspace tabs), single-line bottom status strip.
 pub const TOP_BAR_HEIGHT: u16 = 3;
@@ -35,7 +37,7 @@ pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
     let bottom_columns = bottom_bar::columns(root[2]);
     let window_targets = window_targets(bottom_columns[1], state);
     let launcher = centered_rect(64, 62, area);
-    let file_manager_row_targets = file_manager_row_targets(root[1], state);
+    let file_manager_hit_targets = file_manager_targets(root[1], state);
     UiGeometry {
         top_bar: root[0],
         desktop: root[1],
@@ -44,14 +46,11 @@ pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
         launcher_button: top_columns[0],
         launcher_targets: launcher_targets(launcher),
         window_targets,
-        file_manager_row_targets,
+        file_manager_hit_targets,
     }
 }
 
-fn file_manager_row_targets(
-    desktop: Rect,
-    state: &AppState,
-) -> Vec<(WindowId, Vec<(usize, Rect)>)> {
+fn file_manager_targets(desktop: Rect, state: &AppState) -> FileManagerGeometryTargets {
     let Some(window) = state
         .focused_window()
         .filter(|window| window.application == ApplicationKind::FileManager)
@@ -61,17 +60,11 @@ fn file_manager_row_targets(
     let Some(manager) = state.file_manager(window.id) else {
         return Vec::new();
     };
-    let entry_count = match &manager.listing {
-        Loadable::Ready(listing) => listing.entries.len(),
-        _ => 0,
-    };
-    let inner = file_manager::inner_content_area(desktop);
-    let layout = file_manager::layout(inner);
-    let rows = file_manager::row_rects(layout.rows_area, entry_count)
-        .into_iter()
-        .enumerate()
-        .collect();
-    vec![(window.id, rows)]
+    let window_inner = windows::content_inner(desktop);
+    let panel_inner = file_manager::panel_inner(window_inner);
+    let layout = file_manager::layout(panel_inner);
+    let targets = file_manager::hit_targets(&layout, manager);
+    vec![(window.id, targets)]
 }
 
 fn launcher_targets(area: Rect) -> Vec<(ApplicationKind, Rect)> {

@@ -3,7 +3,7 @@ use ratatui::layout::Position;
 
 use crate::{
     actions::Action,
-    app::{AppState, ApplicationKind},
+    app::{AppState, ApplicationKind, SortColumn},
     ui::geometry::UiGeometry,
 };
 
@@ -60,7 +60,40 @@ pub fn action_for_key(
             KeyEvent {
                 code: KeyCode::Backspace,
                 ..
-            } => Some(Action::FileManagerParent),
+            }
+            | KeyEvent {
+                code: KeyCode::Left,
+                modifiers: KeyModifiers::ALT,
+                ..
+            } => Some(Action::FileManagerGoBack),
+            KeyEvent {
+                code: KeyCode::Char('u'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::FileManagerGoUp),
+            KeyEvent {
+                code: KeyCode::Char('g'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            }
+            | KeyEvent {
+                code: KeyCode::Char('~'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::FileManagerGoHome),
+            KeyEvent {
+                code: KeyCode::Tab,
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::FileManagerTogglePane),
+            KeyEvent {
+                code: KeyCode::PageUp,
+                ..
+            } => Some(Action::FileManagerPageScroll(-1)),
+            KeyEvent {
+                code: KeyCode::PageDown,
+                ..
+            } => Some(Action::FileManagerPageScroll(1)),
             KeyEvent {
                 code: KeyCode::Char('h'),
                 modifiers: KeyModifiers::NONE,
@@ -71,6 +104,21 @@ pub fn action_for_key(
                 modifiers: KeyModifiers::NONE,
                 ..
             } => Some(Action::ReloadFileManager),
+            KeyEvent {
+                code: KeyCode::Char('1'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::FileManagerSetSort(SortColumn::Name)),
+            KeyEvent {
+                code: KeyCode::Char('2'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::FileManagerSetSort(SortColumn::Size)),
+            KeyEvent {
+                code: KeyCode::Char('3'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::FileManagerSetSort(SortColumn::Modified)),
             _ => None,
         };
     }
@@ -209,6 +257,17 @@ pub fn action_for_mouse(
         }
         return None;
     }
+    let file_manager_focused = state
+        .focused_window()
+        .is_some_and(|window| window.application == ApplicationKind::FileManager);
+    if file_manager_focused {
+        if mouse.kind == MouseEventKind::ScrollUp {
+            return Some(Action::FileManagerPageScroll(-1));
+        }
+        if mouse.kind == MouseEventKind::ScrollDown {
+            return Some(Action::FileManagerPageScroll(1));
+        }
+    }
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
         return None;
     }
@@ -226,8 +285,31 @@ pub fn action_for_mouse(
             return Some(Action::FocusWindow(*id));
         }
     }
-    for (window_id, rows) in &geometry.file_manager_row_targets {
-        for (index, area) in rows {
+    for (window_id, targets) in &geometry.file_manager_hit_targets {
+        if targets.back.contains(position) {
+            return Some(Action::FileManagerGoBack);
+        }
+        if targets.up.contains(position) {
+            return Some(Action::FileManagerGoUp);
+        }
+        if targets.home.contains(position) {
+            return Some(Action::FileManagerGoHome);
+        }
+        if targets.sort_name.contains(position) {
+            return Some(Action::FileManagerSetSort(SortColumn::Name));
+        }
+        if targets.sort_size.contains(position) {
+            return Some(Action::FileManagerSetSort(SortColumn::Size));
+        }
+        if targets.sort_modified.contains(position) {
+            return Some(Action::FileManagerSetSort(SortColumn::Modified));
+        }
+        for (index, area) in &targets.place_rows {
+            if area.contains(position) {
+                return Some(Action::SelectFileManagerPlace(*window_id, *index));
+            }
+        }
+        for (index, area) in &targets.list_rows {
             if area.contains(position) {
                 return Some(Action::SelectFileManagerRow(*window_id, *index));
             }

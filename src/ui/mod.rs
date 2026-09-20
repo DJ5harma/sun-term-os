@@ -6,7 +6,7 @@ pub mod file_manager;
 mod launcher;
 mod theme;
 mod top_bar;
-mod windows;
+pub(crate) mod windows;
 
 use ratatui::{Frame, widgets::Block};
 

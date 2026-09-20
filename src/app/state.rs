@@ -2,12 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::{
+    app::file_manager::standard_places,
     domain::{Window, WindowId, WindowState, Workspace},
     events::Event,
     machine::{
         DirectoryListing, MachineDescriptor, MachineId, MachineKind, ProcessInfo, SystemSnapshot,
     },
 };
+
+pub use super::file_manager::{FileManagerFocus, FileSort, Place, SortColumn};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Loadable<T> {
@@ -21,28 +24,45 @@ pub struct FileManagerState {
     pub current_path: PathBuf,
     pub show_hidden: bool,
     pub selected_index: usize,
+    pub scroll_offset: usize,
+    pub focus: FileManagerFocus,
+    pub selected_place: usize,
+    pub sort: FileSort,
+    pub places: Vec<Place>,
+    pub history: Vec<PathBuf>,
+    pub history_index: usize,
     pub listing: Loadable<DirectoryListing>,
+    pub visible_rows: usize,
 }
 
 impl FileManagerState {
     pub fn new(initial_path: PathBuf) -> Self {
         Self {
-            current_path: initial_path,
+            current_path: initial_path.clone(),
             show_hidden: false,
             selected_index: 0,
+            scroll_offset: 0,
+            focus: FileManagerFocus::List,
+            selected_place: 0,
+            sort: FileSort::default(),
+            places: standard_places(),
+            history: vec![initial_path],
+            history_index: 0,
             listing: Loadable::Loading,
+            visible_rows: 1,
         }
     }
 
     pub fn clamp_selection(&mut self) {
-        let count = match &self.listing {
-            Loadable::Ready(listing) => listing.entries.len(),
-            _ => 0,
-        };
-        if count == 0 {
-            self.selected_index = 0;
-        } else {
-            self.selected_index = self.selected_index.min(count - 1);
+        super::file_manager::clamp_listing_selection(
+            &self.listing,
+            &self.current_path,
+            &mut self.selected_index,
+            &mut self.scroll_offset,
+            self.visible_rows,
+        );
+        if !self.places.is_empty() {
+            self.selected_place = self.selected_place.min(self.places.len() - 1);
         }
     }
 }
@@ -145,7 +165,10 @@ impl AppState {
                     manager.listing = match result {
                         Ok(listing) => {
                             manager.current_path = listing.path.clone();
-                            Loadable::Ready(listing)
+                            Loadable::Ready(super::file_manager::apply_sorted_listing(
+                                listing,
+                                manager.sort,
+                            ))
                         }
                         Err(error) => Loadable::Failed(error),
                     };

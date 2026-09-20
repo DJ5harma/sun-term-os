@@ -1,9 +1,10 @@
 mod effects;
+pub mod file_manager;
 mod reducer;
 pub mod state;
 
 pub use crate::domain::{ApplicationKind, Window, WindowState};
-pub use state::{AppState, Loadable, TerminalStatus};
+pub use state::{AppState, FileManagerFocus, Loadable, SortColumn, TerminalStatus};
 
 use std::{sync::Arc, thread, time::Duration};
 
@@ -61,6 +62,7 @@ impl App {
                 ratatui::layout::Rect::new(0, 0, size.width, size.height),
                 &self.state,
             );
+            self.sync_file_manager_visible_rows();
             self.resize_focused_terminal();
             terminal.draw(|frame| ui::render(frame, &self.state, &self.geometry))?;
 
@@ -175,6 +177,23 @@ impl App {
                         .apply_event(Event::DirectoryLoaded(window_id, result));
                 }
             }
+        }
+    }
+
+    fn sync_file_manager_visible_rows(&mut self) {
+        let Some(window) = self
+            .state
+            .focused_window()
+            .filter(|window| window.application == ApplicationKind::FileManager)
+        else {
+            return;
+        };
+        let window_inner = ui::windows::content_inner(self.geometry.desktop);
+        let panel_inner = ui::file_manager::panel_inner(window_inner);
+        let layout = ui::file_manager::layout(panel_inner);
+        if let Some(manager) = self.state.file_manager_mut(window.id) {
+            ui::file_manager::sync_visible_rows(manager, layout.list_rows);
+            manager.clamp_selection();
         }
     }
 
