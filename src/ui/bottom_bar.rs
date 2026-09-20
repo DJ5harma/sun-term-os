@@ -28,7 +28,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeom
     for window in &state.current_workspace().windows {
         let active = Some(window.id) == state.current_workspace().focused_window;
         windows.push(Span::styled(
-            format!(" {}  ", window.application.title()),
+            format!(" {:<18} ", window.application.title()),
             if active {
                 theme::active()
             } else {

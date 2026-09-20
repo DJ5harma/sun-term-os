@@ -138,10 +138,30 @@ pub fn action_for_mouse(
     state: &AppState,
     geometry: &UiGeometry,
 ) -> Option<Action> {
+    let position = Position::new(mouse.column, mouse.row);
+    if state.launcher_open {
+        if mouse.kind == MouseEventKind::ScrollUp {
+            return Some(Action::MoveLauncherUp);
+        }
+        if mouse.kind == MouseEventKind::ScrollDown {
+            return Some(Action::MoveLauncherDown);
+        }
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return None;
+        }
+        if !geometry.launcher.contains(position) {
+            return Some(Action::CloseLauncher);
+        }
+        for (application, area) in &geometry.launcher_targets {
+            if area.contains(position) {
+                return Some(Action::OpenApplication(*application));
+            }
+        }
+        return None;
+    }
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
         return None;
     }
-    let position = Position::new(mouse.column, mouse.row);
     if geometry.launcher_button.contains(position) {
         return Some(Action::ToggleLauncher);
     }
@@ -164,10 +184,44 @@ pub fn action_for_mouse(
     None
 }
 
+pub fn terminal_mouse(mouse: MouseEvent, geometry: &UiGeometry) -> Option<Vec<u8>> {
+    let position = Position::new(mouse.column, mouse.row);
+    if !geometry.desktop.contains(position) {
+        return None;
+    }
+    let column = mouse.column.saturating_sub(geometry.desktop.x).max(1);
+    let row = mouse.row.saturating_sub(geometry.desktop.y).max(1);
+    let (button, suffix) = match mouse.kind {
+        MouseEventKind::Down(MouseButton::Left) => (0, 'M'),
+        MouseEventKind::Down(MouseButton::Middle) => (1, 'M'),
+        MouseEventKind::Down(MouseButton::Right) => (2, 'M'),
+        MouseEventKind::Up(MouseButton::Left) => (0, 'm'),
+        MouseEventKind::Up(MouseButton::Middle) => (1, 'm'),
+        MouseEventKind::Up(MouseButton::Right) => (2, 'm'),
+        MouseEventKind::Drag(MouseButton::Left) => (32, 'M'),
+        MouseEventKind::Drag(MouseButton::Middle) => (33, 'M'),
+        MouseEventKind::Drag(MouseButton::Right) => (34, 'M'),
+        MouseEventKind::ScrollUp => (64, 'M'),
+        MouseEventKind::ScrollDown => (65, 'M'),
+        MouseEventKind::ScrollLeft => (66, 'M'),
+        MouseEventKind::ScrollRight => (67, 'M'),
+        _ => return None,
+    };
+    Some(format!("\x1b[<{};{};{}{}", button, column, row, suffix).into_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ratatui::layout::Rect;
+
+    #[test]
+    fn ctrl_c_is_forwarded_to_a_focused_terminal() {
+        let key = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+
+        assert_eq!(action_for_key(key, false, true), None);
+        assert_eq!(terminal_input(key), Some(vec![3]));
+    }
 
     #[test]
     fn launcher_and_terminal_shortcuts_are_translated() {
@@ -240,6 +294,34 @@ mod tests {
         assert_eq!(
             terminal_input(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
             Some(b"\x1b[A".to_vec())
+        );
+    }
+
+    #[test]
+    fn launcher_clicks_and_terminal_mouse_events_use_shared_geometry() {
+        let state = AppState::default();
+        let geometry = crate::ui::geometry::calculate(Rect::new(0, 0, 120, 40), &state);
+        let workspace = geometry.workspace_targets[1].1;
+        let mouse = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: workspace.x + 1,
+            row: workspace.y + 1,
+            modifiers: KeyModifiers::NONE,
+        };
+        assert_eq!(
+            action_for_mouse(mouse, &state, &geometry),
+            Some(Action::SwitchWorkspace(1))
+        );
+
+        let terminal_mouse_event = MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: geometry.desktop.x + 4,
+            row: geometry.desktop.y + 3,
+            modifiers: KeyModifiers::NONE,
+        };
+        assert_eq!(
+            terminal_mouse(terminal_mouse_event, &geometry),
+            Some(b"\x1b[<64;4;3M".to_vec())
         );
     }
 }

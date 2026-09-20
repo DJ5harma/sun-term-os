@@ -16,6 +16,10 @@ pub fn terminal_input(key: KeyEvent) -> Option<Vec<u8>> {
     keybindings::terminal_input(key)
 }
 
+pub fn terminal_mouse(mouse: MouseEvent, geometry: &UiGeometry) -> Option<Vec<u8>> {
+    keybindings::terminal_mouse(mouse, geometry)
+}
+
 pub fn action_for_mouse(
     mouse: MouseEvent,
     state: &AppState,

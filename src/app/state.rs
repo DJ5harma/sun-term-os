@@ -13,6 +13,14 @@ pub enum Loadable<T> {
     Failed(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalStatus {
+    Starting,
+    Running,
+    Exited,
+    Failed(String),
+}
+
 #[derive(Debug)]
 pub struct AppState {
     pub machine: MachineDescriptor,
@@ -22,6 +30,7 @@ pub struct AppState {
     pub launcher_selection: usize,
     pub next_window_id: WindowId,
     pub terminal_contents: HashMap<WindowId, String>,
+    pub terminal_statuses: HashMap<WindowId, TerminalStatus>,
     pub system: Loadable<SystemSnapshot>,
     pub processes: Loadable<Vec<ProcessInfo>>,
     pub status: String,
@@ -48,6 +57,7 @@ impl Default for AppState {
             launcher_selection: 0,
             next_window_id: 1,
             terminal_contents: HashMap::new(),
+            terminal_statuses: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
             status: "Welcome to TDE · press p to open the launcher".to_owned(),
@@ -120,5 +130,17 @@ impl AppState {
 
     pub(crate) fn remove_terminal_content(&mut self, window_id: WindowId) {
         self.terminal_contents.remove(&window_id);
+    }
+
+    pub fn terminal_status(&self, window_id: WindowId) -> Option<&TerminalStatus> {
+        self.terminal_statuses.get(&window_id)
+    }
+
+    pub(crate) fn set_terminal_status(&mut self, window_id: WindowId, status: TerminalStatus) {
+        self.terminal_statuses.insert(window_id, status);
+    }
+
+    pub(crate) fn remove_terminal_status(&mut self, window_id: WindowId) {
+        self.terminal_statuses.remove(&window_id);
     }
 }

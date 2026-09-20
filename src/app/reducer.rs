@@ -1,6 +1,6 @@
 use crate::{
     actions::Action,
-    app::{AppState, ApplicationKind, Window, WindowState},
+    app::{AppState, ApplicationKind, TerminalStatus, Window, WindowState},
 };
 
 use super::effects::Effect;
@@ -34,6 +34,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             }
         }
         Action::OpenApplication(application) => {
+            state.launcher_open = false;
             let window_id = open_application(state, application);
             return terminal_effect(application, window_id);
         }
@@ -87,6 +88,9 @@ fn open_application(state: &mut AppState, application: ApplicationKind) -> u64 {
         state: WindowState::Normal,
     });
     state.current_workspace_mut().focused_window = Some(id);
+    if application == ApplicationKind::Terminal {
+        state.set_terminal_status(id, TerminalStatus::Starting);
+    }
     state.status = format!("Opened {}", application.title());
     id
 }

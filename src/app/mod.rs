@@ -3,7 +3,7 @@ mod reducer;
 pub mod state;
 
 pub use crate::domain::{ApplicationKind, Window, WindowState};
-pub use state::{AppState, Loadable};
+pub use state::{AppState, Loadable, TerminalStatus};
 
 use std::{sync::Arc, thread, time::Duration};
 
@@ -100,6 +100,15 @@ impl App {
             Event::Mouse(mouse) => {
                 if let Some(action) = input::action_for_mouse(mouse, &self.state, &self.geometry) {
                     self.dispatch(action).await;
+                } else if !self.state.launcher_open
+                    && let Some(window_id) = self
+                        .state
+                        .focused_window()
+                        .filter(|window| window.application == ApplicationKind::Terminal)
+                        .map(|window| window.id)
+                    && let Some(input) = input::terminal_mouse(mouse, &self.geometry)
+                {
+                    let _ = self.terminal_manager.write_input(window_id, &input);
                 }
             }
             Event::SystemInfoLoaded(result) => {
@@ -123,12 +132,20 @@ impl App {
                 Effect::RefreshCapabilities => self.refresh_capabilities().await,
                 Effect::StartTerminal(window_id) => {
                     if let Err(error) = self.terminal_manager.open(window_id, 80, 24) {
+                        self.state.set_terminal_status(
+                            window_id,
+                            TerminalStatus::Failed(error.to_string()),
+                        );
                         self.state.status = format!("Terminal failed to start: {error}");
+                    } else {
+                        self.state
+                            .set_terminal_status(window_id, TerminalStatus::Running);
                     }
                 }
                 Effect::StopTerminal(window_id) => {
                     self.terminal_manager.close(window_id);
                     self.state.remove_terminal_content(window_id);
+                    self.state.remove_terminal_status(window_id);
                 }
             }
         }
@@ -152,11 +169,18 @@ impl App {
             TerminalEvent::Output { window_id, bytes } => {
                 if let Some(content) = self.terminal_manager.consume_output(window_id, &bytes) {
                     self.state.set_terminal_content(window_id, content);
+                    self.state
+                        .set_terminal_status(window_id, TerminalStatus::Running);
                 }
             }
             TerminalEvent::Exited { window_id } => {
                 self.terminal_manager.close(window_id);
-                self.state.status = "Terminal process exited".to_owned();
+                if self.state.terminal_status(window_id).is_some() {
+                    self.state
+                        .set_terminal_status(window_id, TerminalStatus::Exited);
+                    self.state.status =
+                        "Terminal process exited · press Ctrl+W to close".to_owned();
+                }
             }
         }
     }
