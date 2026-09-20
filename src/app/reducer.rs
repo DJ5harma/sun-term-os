@@ -60,8 +60,18 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
                 }
             }
         }
-        Action::FocusNextWindow => focus_window_by_offset(state, 1),
-        Action::FocusPreviousWindow => focus_window_by_offset(state, -1),
+        Action::FocusWindowSlot(slot) => {
+            focus_window_slot(state, slot);
+            state.window_pick_mode = false;
+        }
+        Action::BeginWindowPick => {
+            state.window_pick_mode = true;
+            state.status = "Press 1–9 to focus a window · Esc to cancel".to_owned();
+        }
+        Action::CancelWindowPick => {
+            state.window_pick_mode = false;
+            state.status = "Window focus cancelled".to_owned();
+        }
         Action::FocusWindow(id) => focus_window(state, id),
         Action::MinimizeWindow => {
             if let Some(window) = state.focused_window_mut() {
@@ -210,6 +220,14 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
                 manager.focus = FileManagerFocus::Places;
                 manager.selected_place = index;
             }
+        }
+        Action::ToggleInputDebug => {
+            state.input_debug = !state.input_debug;
+            state.input_debug_line = if state.input_debug {
+                "Input debug on (Ctrl+Alt+D off)".to_owned()
+            } else {
+                String::new()
+            };
         }
     }
     Vec::new()
@@ -371,6 +389,18 @@ fn focus_window(state: &mut AppState, id: u64) {
         .any(|window| window.id == id && window.state != WindowState::Minimized)
     {
         state.current_workspace_mut().focused_window = Some(id);
+    }
+}
+
+fn focus_window_slot(state: &mut AppState, slot: u8) {
+    if !(1..=9).contains(&slot) {
+        return;
+    }
+    let visible = state.visible_window_ids();
+    let index = (slot - 1) as usize;
+    if let Some(id) = visible.get(index) {
+        focus_window(state, *id);
+        state.status = format!("Window {slot}");
     }
 }
 

@@ -1,16 +1,37 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 
-use crate::{app::AppState, ui::bottom_bar};
+use crate::{actions::Action, app::AppState};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy)]
+pub struct TopBarGeometry {
+    pub area: Rect,
+    pub brand: Rect,
+    pub workspaces: Rect,
+    pub machine: Rect,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BottomBarGeometry {
+    pub area: Rect,
+    pub launcher: Rect,
+    pub windows: Rect,
+    pub status: Rect,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct UiGeometry {
-    pub top_bar: Rect,
+    pub top_bar: TopBarGeometry,
     pub desktop: Rect,
-    pub bottom_bar: Rect,
+    pub bottom_bar: BottomBarGeometry,
     pub launcher: Rect,
 }
 
-/// Vertical chrome: top bar (workspace tabs), single-line bottom status strip.
+impl Default for UiGeometry {
+    fn default() -> Self {
+        calculate(Rect::new(0, 0, 80, 24), &AppState::default())
+    }
+}
+
 pub const TOP_BAR_HEIGHT: u16 = 3;
 pub const BOTTOM_BAR_HEIGHT: u16 = 1;
 
@@ -23,18 +44,49 @@ pub fn calculate(area: Rect, _state: &AppState) -> UiGeometry {
             Constraint::Length(BOTTOM_BAR_HEIGHT),
         ])
         .split(area);
-    let _ = bottom_bar::columns(root[2]);
-    let launcher = centered_rect(64, 62, area);
     UiGeometry {
-        top_bar: root[0],
+        top_bar: top_bar_layout(root[0]),
         desktop: root[1],
-        bottom_bar: root[2],
-        launcher,
+        bottom_bar: bottom_bar_layout(root[2]),
+        launcher: centered_rect(64, 62, area),
     }
 }
 
-/// Workspace labels in the top bar; must match [top_bar::render] cell layout.
-pub fn workspace_cells(area: Rect, count: usize) -> Vec<(usize, Rect)> {
+pub fn top_bar_layout(area: Rect) -> TopBarGeometry {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(14),
+            Constraint::Min(20),
+            Constraint::Length(24),
+        ])
+        .split(area);
+    TopBarGeometry {
+        area,
+        brand: chunks[0],
+        workspaces: chunks[1],
+        machine: chunks[2],
+    }
+}
+
+pub fn bottom_bar_layout(area: Rect) -> BottomBarGeometry {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(36),
+            Constraint::Min(12),
+            Constraint::Length(28),
+        ])
+        .split(area);
+    BottomBarGeometry {
+        area,
+        launcher: chunks[0],
+        windows: chunks[1],
+        status: chunks[2],
+    }
+}
+
+pub fn workspace_cells(workspaces_area: Rect, count: usize) -> Vec<(usize, Rect)> {
     if count == 0 {
         return Vec::new();
     }
@@ -44,11 +96,61 @@ pub fn workspace_cells(area: Rect, count: usize) -> Vec<(usize, Rect)> {
             Constraint::Ratio(1, count as u32),
             count,
         ))
-        .split(area)
+        .split(workspaces_area)
         .iter()
         .copied()
         .enumerate()
         .collect()
+}
+
+pub fn window_tab_cells(windows_area: Rect, count: usize) -> Vec<Rect> {
+    if count == 0 {
+        return Vec::new();
+    }
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(std::iter::repeat_n(
+            Constraint::Ratio(1, count as u32),
+            count,
+        ))
+        .split(windows_area)
+        .to_vec()
+}
+
+/// Chrome bars use layout math only — same cells as render, no InteractionMap registration.
+pub fn shell_action_at(
+    column: u16,
+    row: u16,
+    geometry: &UiGeometry,
+    state: &AppState,
+) -> Option<Action> {
+    let position = Position::new(column, row);
+
+    if geometry.bottom_bar.area.contains(position) {
+        if geometry.bottom_bar.launcher.contains(position) {
+            return Some(Action::ToggleLauncher);
+        }
+        let workspace_windows = &state.current_workspace().windows;
+        for (window, cell) in workspace_windows.iter().zip(window_tab_cells(
+            geometry.bottom_bar.windows,
+            workspace_windows.len(),
+        )) {
+            if cell.contains(position) {
+                return Some(Action::FocusWindow(window.id));
+            }
+        }
+        return None;
+    }
+
+    if geometry.top_bar.area.contains(position) {
+        for (index, cell) in workspace_cells(geometry.top_bar.workspaces, state.workspaces.len()) {
+            if cell.contains(position) {
+                return Some(Action::SwitchWorkspace(index));
+            }
+        }
+    }
+
+    None
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
@@ -78,7 +180,37 @@ mod tests {
     fn geometry_has_stable_top_and_bottom_bars() {
         let state = AppState::default();
         let geometry = calculate(Rect::new(0, 0, 120, 40), &state);
-        assert_eq!(geometry.top_bar.height, TOP_BAR_HEIGHT);
-        assert_eq!(geometry.bottom_bar.height, BOTTOM_BAR_HEIGHT);
+        assert_eq!(geometry.top_bar.area.height, TOP_BAR_HEIGHT);
+        assert_eq!(geometry.bottom_bar.area.height, BOTTOM_BAR_HEIGHT);
+    }
+
+    #[test]
+    fn shell_action_matches_bottom_bar_cells() {
+        use crate::domain::{ApplicationKind, Window, WindowState};
+        let mut state = AppState::default();
+        let workspace = &mut state.workspaces[0];
+        workspace.windows.push(Window {
+            id: 1,
+            application: ApplicationKind::Terminal,
+            state: WindowState::Normal,
+        });
+        workspace.focused_window = Some(1);
+        let geometry = calculate(Rect::new(0, 0, 100, 24), &state);
+        let launcher_x = geometry.bottom_bar.launcher.x + 2;
+        assert_eq!(
+            shell_action_at(
+                launcher_x,
+                geometry.bottom_bar.launcher.y,
+                &geometry,
+                &state
+            ),
+            Some(Action::ToggleLauncher)
+        );
+        let windows = &state.current_workspace().windows;
+        let cell = window_tab_cells(geometry.bottom_bar.windows, windows.len())[0];
+        assert_eq!(
+            shell_action_at(cell.x + cell.width / 2, cell.y, &geometry, &state),
+            Some(Action::FocusWindow(windows[0].id))
+        );
     }
 }

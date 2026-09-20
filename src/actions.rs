@@ -11,8 +11,11 @@ pub enum Action {
     ExecuteLauncherSelection,
     OpenApplication(ApplicationKind),
     CloseWindow,
-    FocusNextWindow,
-    FocusPreviousWindow,
+    /// Focus the Nth window on the current workspace (1–9, left-to-right in the bar).
+    FocusWindowSlot(u8),
+    /// Wait for a follow-up digit (prefix chord — works inside host terminals).
+    BeginWindowPick,
+    CancelWindowPick,
     FocusWindow(WindowId),
     MinimizeWindow,
     ToggleMaximizeWindow,
@@ -29,4 +32,5 @@ pub enum Action {
     FileManagerPageScroll(i32),
     FileManagerSetSort(crate::app::SortColumn),
     SelectFileManagerPlace(WindowId, usize),
+    ToggleInputDebug,
 }

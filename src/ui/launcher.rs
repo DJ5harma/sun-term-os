@@ -13,7 +13,10 @@ use crate::{
     app::{AppState, ApplicationKind},
 };
 
-use super::{hit_map::HitMap, theme};
+use super::{
+    interaction::{InteractionLayer, InteractionMap},
+    theme,
+};
 
 fn launcher_block() -> Block<'static> {
     Block::default()
@@ -23,7 +26,7 @@ fn launcher_block() -> Block<'static> {
         .style(Style::default().bg(theme::SURFACE))
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mut InteractionMap) {
     frame.render_widget(Clear, area);
     let inner = launcher_block().inner(area);
     let items = ApplicationKind::ALL
@@ -53,6 +56,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap
         ))
         .split(inner);
     for (application, row) in ApplicationKind::ALL.iter().zip(rows.iter()) {
-        hits.register(*row, Action::OpenApplication(*application));
+        interactions.register(
+            InteractionLayer::Modal,
+            *row,
+            Action::OpenApplication(*application),
+        );
     }
 }

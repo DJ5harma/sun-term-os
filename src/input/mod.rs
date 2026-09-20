@@ -1,7 +1,12 @@
+mod bindings;
 mod keybindings;
 mod mouse_click;
-pub mod shell_shortcuts;
+pub mod normalize;
+mod pointer;
+mod router;
+pub mod terminal_encode;
 
+pub use bindings::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT, WORKSPACE_HINT};
 pub use mouse_click::DoubleClickState;
 
 use crossterm::event::{KeyEvent, MouseEvent};
@@ -9,35 +14,21 @@ use crossterm::event::{KeyEvent, MouseEvent};
 use crate::{
     actions::Action,
     app::AppState,
-    ui::{geometry::UiGeometry, hit_map::HitMap},
+    ui::{geometry::UiGeometry, interaction::InteractionMap},
 };
 
-pub fn action_for_key(
-    key: KeyEvent,
-    launcher_open: bool,
-    terminal_focused: bool,
-    file_manager_focused: bool,
-) -> Option<Action> {
-    keybindings::action_for_key(key, launcher_open, terminal_focused, file_manager_focused)
-}
+pub use router::{FocusContext, KeyDispatch, KeyInputContext, dispatch_key};
 
-pub fn terminal_input(key: KeyEvent) -> Option<Vec<u8>> {
-    keybindings::terminal_input(key)
-}
-
-pub fn terminal_mouse(mouse: MouseEvent, geometry: &UiGeometry) -> Option<Vec<u8>> {
-    keybindings::terminal_mouse(mouse, geometry)
+pub fn handle_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
+    dispatch_key(key, context)
 }
 
 pub fn actions_for_mouse(
     mouse: MouseEvent,
     state: &AppState,
     geometry: &UiGeometry,
-    hit_map: &HitMap,
-    double_click: &mut mouse_click::DoubleClickState,
+    interactions: &InteractionMap,
+    double_click: &mut DoubleClickState,
 ) -> Vec<Action> {
-    let Some(primary) = keybindings::action_for_mouse(mouse, state, geometry, hit_map) else {
-        return Vec::new();
-    };
-    double_click.actions_after_primary(&mouse, primary)
+    pointer::dispatch_pointer(mouse, state, geometry, interactions, double_click).actions
 }

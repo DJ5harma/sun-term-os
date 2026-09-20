@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::app::{AppState, ApplicationKind, Loadable, TerminalStatus, Window};
 
-use super::{hit_map::HitMap, theme};
+use super::{interaction::InteractionMap, theme};
 
 fn window_block(title: String) -> Block<'static> {
     Block::default()
@@ -27,7 +27,13 @@ pub(crate) fn content_inner(area: Rect, window: &Window, state: &AppState) -> Re
     window_block(title).inner(area)
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window, hits: &mut HitMap) {
+pub fn render(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    window: &Window,
+    interactions: &mut InteractionMap,
+) {
     let title = format!(
         " {}  ·  {} ",
         window.application.title(),
@@ -39,7 +45,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window, 
     match window.application {
         ApplicationKind::Terminal => terminal(frame, inner, state, window.id),
         ApplicationKind::FileManager => {
-            super::file_manager::render(frame, inner, state, window.id, hits);
+            super::file_manager::render(frame, inner, state, window.id, interactions);
         }
         ApplicationKind::SystemInfo => system(frame, inner, state),
         ApplicationKind::Processes => processes(frame, inner, state),

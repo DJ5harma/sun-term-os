@@ -1,34 +1,32 @@
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::Alignment,
     style::Style,
     text::{Line, Span},
     widgets::Paragraph,
 };
 
 use crate::{
-    actions::Action,
     app::{AppState, Loadable},
-    input::shell_shortcuts::LAUNCHER_SHORTCUT_HINT,
+    domain::ApplicationKind,
+    input::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT},
 };
 
-use super::{hit_map::HitMap, theme};
+use super::{
+    geometry::{BottomBarGeometry, window_tab_cells},
+    theme,
+};
 
-pub fn columns(area: Rect) -> [Rect; 3] {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(26),
-            Constraint::Min(12),
-            Constraint::Length(28),
-        ])
-        .split(area);
-    [chunks[0], chunks[1], chunks[2]]
+fn short_app_title(kind: ApplicationKind) -> &'static str {
+    match kind {
+        ApplicationKind::Terminal => "Term",
+        ApplicationKind::FileManager => "Files",
+        ApplicationKind::SystemInfo => "Sys",
+        ApplicationKind::Processes => "Proc",
+    }
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
-    let [launcher, windows, status] = columns(area);
-    hits.register(launcher, Action::ToggleLauncher);
+pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(" ⊞ ", Style::default().fg(theme::BG).bg(theme::AMBER)),
@@ -38,36 +36,36 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap
                 Style::default().fg(theme::MUTED),
             ),
         ])),
-        launcher,
+        layout.launcher,
     );
 
-    let mut window_spans = Vec::new();
-    for window in &state.current_workspace().windows {
-        let active = Some(window.id) == state.current_workspace().focused_window;
-        window_spans.push(Span::styled(
-            format!(" {} ", window.application.title()),
-            if active {
+    let workspace_windows = &state.current_workspace().windows;
+    if workspace_windows.is_empty() {
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(" — ", theme::muted()))),
+            layout.windows,
+        );
+    } else {
+        let cells = window_tab_cells(layout.windows, workspace_windows.len());
+        for (index, window) in workspace_windows.iter().enumerate() {
+            let cell = cells[index];
+            let active = Some(window.id) == state.current_workspace().focused_window;
+            let slot = index + 1;
+            let label = if slot <= 9 {
+                format!("{slot}:{}", short_app_title(window.application))
+            } else {
+                window.application.title().to_owned()
+            };
+            let style = if active {
                 theme::active()
             } else {
                 Style::default().fg(theme::MUTED)
-            },
-        ));
-    }
-    if window_spans.is_empty() {
-        window_spans.push(Span::styled(" — ", theme::muted()));
-    }
-    frame.render_widget(Paragraph::new(Line::from(window_spans)), windows);
-    let workspace_windows = &state.current_workspace().windows;
-    if !workspace_windows.is_empty() {
-        let cells = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(std::iter::repeat_n(
-                Constraint::Length(20),
-                workspace_windows.len(),
-            ))
-            .split(windows);
-        for (window, cell) in workspace_windows.iter().zip(cells.iter()) {
-            hits.register(*cell, Action::FocusWindow(window.id));
+            };
+            frame.render_widget(
+                Paragraph::new(Line::from(Span::styled(format!(" {label} "), style)))
+                    .alignment(Alignment::Center),
+                cell,
+            );
         }
     }
 
@@ -76,13 +74,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap
         Loadable::Loading => "proc…".to_owned(),
         Loadable::Failed(_) => "proc —".to_owned(),
     };
+    let status_text = if state.input_debug && !state.input_debug_line.is_empty() {
+        state.input_debug_line.clone()
+    } else if state.window_pick_mode {
+        "pick 1–9 · Esc cancel".to_owned()
+    } else {
+        format!("{process_count} · {WINDOW_FOCUS_HINT} · {}", state.status)
+    };
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(process_count, Style::default().fg(theme::BLUE)),
-            Span::styled(" · ", theme::muted()),
-            Span::styled(state.status.as_str(), theme::muted()),
-        ]))
-        .alignment(Alignment::Right),
-        status,
+        Paragraph::new(Line::from(Span::styled(status_text, theme::muted())))
+            .alignment(Alignment::Right),
+        layout.status,
     );
 }

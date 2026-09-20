@@ -89,6 +89,10 @@ pub struct AppState {
     pub system: Loadable<SystemSnapshot>,
     pub processes: Loadable<Vec<ProcessInfo>>,
     pub status: String,
+    pub input_debug: bool,
+    pub input_debug_line: String,
+    /// After [Action::BeginWindowPick], next digit 1–9 focuses a window.
+    pub window_pick_mode: bool,
     pub should_quit: bool,
 }
 
@@ -116,7 +120,10 @@ impl Default for AppState {
             file_managers: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
-            status: "Welcome · ⊞ Apps below · F1–F3 workspaces".to_owned(),
+            status: "Welcome · ⊞ Apps · Ctrl+G then 1–9 for windows · F1–F3 workspaces".to_owned(),
+            input_debug: false,
+            input_debug_line: String::new(),
+            window_pick_mode: false,
             should_quit: false,
         }
     }

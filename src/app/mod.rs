@@ -29,7 +29,7 @@ pub struct App {
     pub state: AppState,
     geometry: ui::geometry::UiGeometry,
     mouse_click: input::DoubleClickState,
-    hit_map: ui::hit_map::HitMap,
+    interactions: ui::interaction::InteractionMap,
     terminal_manager: TerminalManager,
     system_provider: Arc<dyn SystemInfoProvider>,
     process_provider: Arc<dyn ProcessProvider>,
@@ -46,7 +46,7 @@ impl App {
             state: AppState::default(),
             geometry: ui::geometry::UiGeometry::default(),
             mouse_click: input::DoubleClickState::default(),
-            hit_map: ui::hit_map::HitMap::default(),
+            interactions: ui::interaction::InteractionMap::default(),
             terminal_manager: TerminalManager::default(),
             system_provider,
             process_provider,
@@ -68,9 +68,10 @@ impl App {
             );
             self.sync_file_manager_visible_rows();
             self.resize_focused_terminal();
-            self.hit_map.clear();
-            terminal
-                .draw(|frame| ui::render(frame, &self.state, &self.geometry, &mut self.hit_map))?;
+            self.interactions.clear();
+            terminal.draw(|frame| {
+                ui::render(frame, &self.state, &self.geometry, &mut self.interactions)
+            })?;
 
             tokio::select! {
                 _ = ticker.tick() => self.handle_event(Event::Tick).await,
@@ -97,22 +98,29 @@ impl App {
                     .focused_window()
                     .filter(|window| window.application == ApplicationKind::Terminal)
                     .map(|window| window.id);
-                let file_manager_focused = self
-                    .state
-                    .focused_window()
-                    .is_some_and(|window| window.application == ApplicationKind::FileManager);
-                if let Some(action) = input::action_for_key(
-                    key,
-                    self.state.launcher_open,
-                    terminal_window.is_some(),
-                    file_manager_focused,
-                ) {
-                    self.dispatch(action).await;
-                } else if let Some(window_id) = terminal_window
-                    && !self.state.launcher_open
-                    && let Some(input) = input::terminal_input(key)
-                {
-                    let _ = self.terminal_manager.write_input(window_id, &input);
+                let focus = if self.state.launcher_open {
+                    input::FocusContext::Launcher
+                } else if let Some(window) = self.state.focused_window() {
+                    input::FocusContext::Window(window.application)
+                } else {
+                    input::FocusContext::Chrome
+                };
+                let context = input::KeyInputContext {
+                    focus,
+                    window_pick_mode: self.state.window_pick_mode,
+                };
+                let dispatch = input::handle_key(key, &context);
+                if self.state.input_debug {
+                    self.state.input_debug_line = format_input_debug(key, &dispatch);
+                }
+                match dispatch {
+                    input::KeyDispatch::Action(action) => self.dispatch(action).await,
+                    input::KeyDispatch::Terminal(bytes) => {
+                        if let Some(window_id) = terminal_window {
+                            let _ = self.terminal_manager.write_input(window_id, &bytes);
+                        }
+                    }
+                    input::KeyDispatch::Consumed => {}
                 }
             }
             Event::Mouse(mouse) => {
@@ -120,23 +128,11 @@ impl App {
                     mouse,
                     &self.state,
                     &self.geometry,
-                    &self.hit_map,
+                    &self.interactions,
                     &mut self.mouse_click,
                 );
-                let handled = !actions.is_empty();
                 for action in actions {
                     self.dispatch(action).await;
-                }
-                if !handled
-                    && !self.state.launcher_open
-                    && let Some(window_id) = self
-                        .state
-                        .focused_window()
-                        .filter(|window| window.application == ApplicationKind::Terminal)
-                        .map(|window| window.id)
-                    && let Some(input) = input::terminal_mouse(mouse, &self.geometry)
-                {
-                    let _ = self.terminal_manager.write_input(window_id, &input);
                 }
             }
             Event::SystemInfoLoaded(result) => {
@@ -259,6 +255,24 @@ impl App {
         ));
         self.state.status = "Live · refreshed just now".to_owned();
     }
+}
+
+fn format_input_debug(key: crossterm::event::KeyEvent, dispatch: &input::KeyDispatch) -> String {
+    use std::fmt::Write;
+
+    let normalized = input::normalize::normalize_key_event(key);
+    let dispatch_label = match dispatch {
+        input::KeyDispatch::Action(action) => format!("Action({action:?})"),
+        input::KeyDispatch::Terminal(bytes) => format!("Terminal({} bytes)", bytes.len()),
+        input::KeyDispatch::Consumed => "Consumed".to_owned(),
+    };
+    let mut line = String::new();
+    let _ = write!(
+        line,
+        "raw {:?}+{:?} → norm {:?}+{:?} → {}",
+        key.code, key.modifiers, normalized.code, normalized.modifiers, dispatch_label
+    );
+    line
 }
 
 fn spawn_input_reader() -> UnboundedReceiver<Event> {

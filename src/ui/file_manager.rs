@@ -21,7 +21,10 @@ use crate::{
     machine::FileEntryKind,
 };
 
-use super::{hit_map::HitMap, theme};
+use super::{
+    interaction::{InteractionLayer, InteractionMap},
+    theme,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FileManagerLayout {
@@ -106,7 +109,7 @@ pub fn render(
     area: Rect,
     state: &AppState,
     window_id: u64,
-    hits: &mut HitMap,
+    interactions: &mut InteractionMap,
 ) {
     let Some(manager) = state.file_manager(window_id) else {
         frame.render_widget(
@@ -137,25 +140,29 @@ pub fn render(
             render_list(frame, layout.list_rows, manager, listing);
         }
     }
-    register_mouse_hits(hits, window_id, &layout, manager);
+    register_pointer_targets(interactions, window_id, &layout, manager);
 }
 
-fn register_mouse_hits(
-    hits: &mut HitMap,
+fn register_pointer_targets(
+    interactions: &mut InteractionMap,
     window_id: u64,
     layout: &FileManagerLayout,
     manager: &FileManagerState,
 ) {
     if layout.toolbar.width >= 9 {
-        hits.register(
+        let layer = InteractionLayer::Content;
+        interactions.register(
+            layer,
             Rect::new(layout.toolbar.x, layout.toolbar.y, 3, 1),
             Action::FileManagerGoBack,
         );
-        hits.register(
+        interactions.register(
+            layer,
             Rect::new(layout.toolbar.x + 3, layout.toolbar.y, 3, 1),
             Action::FileManagerGoUp,
         );
-        hits.register(
+        interactions.register(
+            layer,
             Rect::new(layout.toolbar.x + 6, layout.toolbar.y, 3, 1),
             Action::FileManagerGoHome,
         );
@@ -165,13 +172,11 @@ fn register_mouse_hits(
     let place_count = manager.places.len();
     if place_count > 0 && places_inner.height > 0 {
         let visible_places = place_count.min(places_inner.height as usize);
-        let rows = Layout::vertical(std::iter::repeat_n(
-            Constraint::Length(1),
-            visible_places,
-        ))
-        .split(places_inner);
+        let rows = Layout::vertical(std::iter::repeat_n(Constraint::Length(1), visible_places))
+            .split(places_inner);
         for (index, rect) in rows.iter().enumerate() {
-            hits.register(
+            interactions.register(
+                InteractionLayer::Content,
                 *rect,
                 Action::SelectFileManagerPlace(window_id, index),
             );
@@ -180,9 +185,14 @@ fn register_mouse_hits(
 
     if layout.list_header.width > 20 {
         let cols = list_column_rects(layout.list_header);
-        hits.register(cols[1], Action::FileManagerSetSort(SortColumn::Name));
-        hits.register(cols[2], Action::FileManagerSetSort(SortColumn::Size));
-        hits.register(cols[3], Action::FileManagerSetSort(SortColumn::Modified));
+        let layer = InteractionLayer::Content;
+        interactions.register(layer, cols[1], Action::FileManagerSetSort(SortColumn::Name));
+        interactions.register(layer, cols[2], Action::FileManagerSetSort(SortColumn::Size));
+        interactions.register(
+            layer,
+            cols[3],
+            Action::FileManagerSetSort(SortColumn::Modified),
+        );
     }
 
     if let Loadable::Ready(listing) = &manager.listing {
@@ -193,7 +203,8 @@ fn register_mouse_hits(
         let rows = Layout::vertical(std::iter::repeat_n(Constraint::Length(1), count))
             .split(layout.list_rows);
         for (offset, rect) in rows.iter().enumerate() {
-            hits.register(
+            interactions.register(
+                InteractionLayer::Content,
                 *rect,
                 Action::SelectFileManagerRow(window_id, start + offset),
             );
@@ -412,7 +423,10 @@ mod tests {
     fn places_sidebar_hits_use_inner_below_title() {
         let area = Rect::new(4, 6, 18, 8);
         let inner = places_panel_inner(area);
-        assert!(inner.y > area.y, "place rows must be below the Places title");
+        assert!(
+            inner.y > area.y,
+            "place rows must be below the Places title"
+        );
         assert_eq!(inner.x, area.x);
     }
 

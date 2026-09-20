@@ -5,23 +5,25 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use crate::app::AppState;
+use crate::{
+    app::AppState,
+    input::{WINDOW_FOCUS_HINT, WORKSPACE_HINT},
+};
 
-use super::{hit_map::HitMap, theme, windows};
+use super::{interaction::InteractionMap, theme, windows};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mut InteractionMap) {
     let workspace = state.current_workspace();
     if workspace.windows.is_empty() {
-        let text = [
-            "The desktop is ready.",
-            "",
-            "Open Apps from the bottom bar (⊞) or press Ctrl+Shift+P.",
-            "Press t for a terminal window.",
-            "Press f for the file manager.",
-            "Switch workspaces: click F1–F3 above or press those keys.",
-        ];
+        let text = format!(
+            "The desktop is ready.\n\n\
+             Open Apps from the bottom bar (⊞) or press Alt+P.\n\
+             Press t for a terminal window.\n\
+             Press f for the file manager.\n\
+             Focus windows: {WINDOW_FOCUS_HINT} (bar order) or click bar tabs · workspaces: {WORKSPACE_HINT}."
+        );
         frame.render_widget(
-            Paragraph::new(text.join("\n"))
+            Paragraph::new(text)
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -32,6 +34,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap
             area,
         );
     } else if let Some(window) = state.focused_window() {
-        windows::render(frame, area, state, window, hits);
+        windows::render(frame, area, state, window, interactions);
     }
 }
