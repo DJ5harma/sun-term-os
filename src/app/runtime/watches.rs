@@ -64,5 +64,4 @@ impl DirectoryWatchHub {
             self.watchers.insert(window_id, watcher);
         }
     }
-
 }

@@ -16,8 +16,8 @@ use super::{
 pub fn render(frame: &mut Frame, layout: TopBarGeometry, state: &AppState) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(" TDE ", theme::active()),
-            Span::styled("desktop", Style::default().fg(theme::MUTED)),
+            Span::styled(" sun-term-os ", theme::active()),
+            Span::styled("desktop", Style::default().fg(theme::muted_color())),
         ])),
         layout.brand,
     );
@@ -27,14 +27,17 @@ pub fn render(frame: &mut Frame, layout: TopBarGeometry, state: &AppState) {
         let line = if index == state.active_workspace {
             Line::from(Span::styled(label, theme::active()))
         } else {
-            Line::from(Span::styled(label, Style::default().fg(theme::MUTED)))
+            Line::from(Span::styled(
+                label,
+                Style::default().fg(theme::muted_color()),
+            ))
         };
         frame.render_widget(Paragraph::new(line).alignment(Alignment::Center), cell);
     }
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("● ", Style::default().fg(theme::GREEN)),
-            Span::styled(state.host_label(), Style::default().fg(theme::TEXT)),
+            Span::styled("● ", Style::default().fg(theme::green())),
+            Span::styled(state.host_label(), Style::default().fg(theme::text())),
         ]))
         .alignment(Alignment::Right),
         layout.machine,

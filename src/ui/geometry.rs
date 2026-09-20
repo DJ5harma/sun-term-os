@@ -79,7 +79,7 @@ pub fn top_bar_layout(area: Rect) -> TopBarGeometry {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(14),
+            Constraint::Length(18),
             Constraint::Min(20),
             Constraint::Length(24),
         ])

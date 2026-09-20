@@ -2,6 +2,7 @@
 
 mod file_manager;
 mod processes;
+mod settings;
 pub(crate) mod shell_keys;
 mod system_info;
 mod terminal;
@@ -47,11 +48,12 @@ pub struct BuiltInApp {
     pub palette_extras: Option<PaletteExtrasFn>,
 }
 
-const BUILT_INS: [BuiltInApp; 4] = [
+const BUILT_INS: [BuiltInApp; 5] = [
     terminal::APP,
     file_manager::APP,
     processes::APP,
     system_info::APP,
+    settings::APP,
 ];
 
 pub fn all() -> &'static [BuiltInApp] {
@@ -150,6 +152,14 @@ pub async fn run_effect(
 ) {
     use crate::app::effects::Effect;
     match effect {
+        Effect::PersistConfig => {
+            if let Err(error) = crate::config::save(&state.config) {
+                state.status = format!("Could not save settings: {error}");
+            } else {
+                crate::ui::theme::reload(&state.config.theme);
+                state.status = "Settings saved".to_owned();
+            }
+        }
         Effect::RefreshCapabilities => executor.refresh_capabilities(state).await,
         Effect::Terminal(effect) => terminal::run_effect(executor, state, effect).await,
         Effect::FileManager(effect) => file_manager::run_effect(executor, state, effect).await,

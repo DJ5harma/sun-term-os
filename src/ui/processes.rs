@@ -57,7 +57,7 @@ pub fn render(
         }
         Loadable::Failed(error) => {
             frame.render_widget(
-                Paragraph::new(error.as_str()).style(Style::default().fg(theme::RED)),
+                Paragraph::new(error.as_str()).style(Style::default().fg(theme::red())),
                 chunks[1],
             );
         }
@@ -88,7 +88,7 @@ pub fn render(
                 let style = if selected {
                     theme::active()
                 } else {
-                    Style::default().fg(theme::TEXT)
+                    Style::default().fg(theme::text())
                 };
                 Row::new(vec![
                     process.pid.to_string(),

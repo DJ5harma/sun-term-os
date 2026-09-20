@@ -21,11 +21,11 @@ use super::{
 pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(" ⊞ ", Style::default().fg(theme::BG).bg(theme::AMBER)),
-            Span::styled("Palette", Style::default().fg(theme::TEXT)),
+            Span::styled(" ⊞ ", Style::default().fg(theme::bg()).bg(theme::accent())),
+            Span::styled("Palette", Style::default().fg(theme::text())),
             Span::styled(
                 format!(" {LAUNCHER_SHORTCUT_HINT}"),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(theme::muted_color()),
             ),
         ])),
         layout.launcher,
@@ -62,7 +62,7 @@ pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
             let style = if active {
                 theme::active()
             } else {
-                Style::default().fg(theme::MUTED)
+                Style::default().fg(theme::muted_color())
             };
             frame.render_widget(
                 Paragraph::new(Line::from(Span::styled(format!(" {label} "), style)))

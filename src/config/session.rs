@@ -51,16 +51,6 @@ pub struct SessionWindow {
     pub file_manager_path: Option<PathBuf>,
 }
 
-pub fn session_path() -> PathBuf {
-    if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
-        return PathBuf::from(dir).join("tde/session.toml");
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        return PathBuf::from(home).join(".config/tde/session.toml");
-    }
-    PathBuf::from("session.toml")
-}
-
 pub fn load_session(path: &Path) -> Result<SessionFile> {
     if !path.exists() {
         return Ok(SessionFile::default());

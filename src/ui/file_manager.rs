@@ -72,7 +72,7 @@ fn places_panel_block() -> Block<'static> {
     Block::default()
         .title(" Places ")
         .borders(Borders::RIGHT)
-        .border_style(Style::default().fg(theme::SURFACE_ALT))
+        .border_style(Style::default().fg(theme::surface_alt()))
 }
 
 fn list_column_constraints() -> [Constraint; 4] {
@@ -116,7 +116,7 @@ pub fn render(
     let Some(manager) = state.file_manager(window_id) else {
         frame.render_widget(
             Paragraph::new("File manager state is unavailable.")
-                .style(Style::default().fg(theme::RED)),
+                .style(Style::default().fg(theme::red())),
             area,
         );
         return;
@@ -134,7 +134,7 @@ pub fn render(
             layout.list_rows,
         ),
         Loadable::Failed(error) => frame.render_widget(
-            Paragraph::new(format!("  {}", error)).style(Style::default().fg(theme::RED)),
+            Paragraph::new(format!("  {}", error)).style(Style::default().fg(theme::red())),
             layout.list_rows,
         ),
         Loadable::Ready(listing) => {
@@ -232,10 +232,10 @@ fn render_toolbar(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
         area.width.saturating_sub(14) as usize,
     );
     let line = Line::from(vec![
-        Span::styled(" ← ", Style::default().fg(theme::BLUE)),
-        Span::styled(" ↑ ", Style::default().fg(theme::BLUE)),
-        Span::styled(" ⌂ ", Style::default().fg(theme::BLUE)),
-        Span::styled(breadcrumb, Style::default().fg(theme::TEXT)),
+        Span::styled(" ← ", Style::default().fg(theme::blue())),
+        Span::styled(" ↑ ", Style::default().fg(theme::blue())),
+        Span::styled(" ⌂ ", Style::default().fg(theme::blue())),
+        Span::styled(breadcrumb, Style::default().fg(theme::text())),
         Span::styled(format!("  {}  R", hidden), theme::muted()),
     ]);
     frame.render_widget(Paragraph::new(line), area);
@@ -253,7 +253,7 @@ fn render_places(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
         {
             theme::active()
         } else {
-            Style::default().fg(theme::TEXT)
+            Style::default().fg(theme::text())
         };
         Row::new(vec![Cell::from(format!("  {}", place.label))]).style(style)
     });
@@ -309,7 +309,7 @@ fn render_list(
         let style = if selected {
             theme::active()
         } else {
-            Style::default().fg(theme::TEXT)
+            Style::default().fg(theme::text())
         };
         row_for_index(&manager.current_path, listing, index, style)
     });

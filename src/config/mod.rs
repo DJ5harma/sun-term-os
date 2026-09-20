@@ -1,13 +1,13 @@
-use std::path::{Path, PathBuf};
-
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+pub mod paths;
 pub mod session;
 pub mod theme;
 
+pub use paths::{default_config_path, default_session_path};
 pub use session::SessionConfig;
-pub use theme::ThemeConfig;
+pub use theme::{ThemeConfig, parse_hex_color};
 
 const MIN_REFRESH_SECS: u64 = 1;
 const MAX_REFRESH_SECS: u64 = 300;
@@ -58,18 +58,8 @@ impl Config {
     }
 }
 
-pub fn default_config_path() -> PathBuf {
-    if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
-        return PathBuf::from(dir).join("tde/config.toml");
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        return PathBuf::from(home).join(".config/tde/config.toml");
-    }
-    PathBuf::from("config.toml")
-}
-
-pub fn load(path: Option<&Path>) -> Result<Config> {
-    let path = path.map(PathBuf::from).unwrap_or_else(default_config_path);
+pub fn load() -> Result<Config> {
+    let path = default_config_path();
     if !path.exists() {
         return Ok(Config::default());
     }
@@ -78,6 +68,18 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
     let config = toml::from_str::<Config>(&text)
         .with_context(|| format!("parse config {}", path.display()))?;
     Ok(config.normalized())
+}
+
+pub fn save(config: &Config) -> Result<()> {
+    let path = default_config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create config dir {}", parent.display()))?;
+    }
+    let config = config.clone().normalized();
+    let text = toml::to_string_pretty(&config).context("serialize config")?;
+    std::fs::write(&path, text).with_context(|| format!("write config {}", path.display()))?;
+    Ok(())
 }
 
 #[cfg(test)]

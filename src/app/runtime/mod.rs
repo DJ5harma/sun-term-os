@@ -46,7 +46,7 @@ impl AppRuntime {
     pub fn new(config: Config, machine: Machine) -> Self {
         let config = config.normalized();
         let refresh_interval_secs = config.refresh_interval_secs;
-        let mut state = AppState::new(config.workspace_count);
+        let mut state = AppState::new(config.clone());
         let pending_session = session::restore_effects(&mut state, &config.session);
         Self {
             state,

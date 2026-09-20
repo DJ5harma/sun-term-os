@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::{
     app::{file_manager::standard_places, terminal_view::TerminalViewState},
+    config::Config,
     domain::{Window, WindowId, WindowState, Workspace},
     machine::{DirectoryListing, ProcessInfo, SystemSnapshot},
 };
@@ -18,6 +19,7 @@ pub enum FileManagerDialog {
     GoToPath { input: String },
 }
 pub use super::process_manager::ProcessManagerState;
+pub use super::settings::SettingsState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Loadable<T> {
@@ -113,17 +115,20 @@ pub struct AppState {
     /// After window-pick chord begins, next digit 1–9 focuses a window.
     pub window_pick_mode: bool,
     pub should_quit: bool,
+    pub config: Config,
+    pub settings_views: HashMap<WindowId, SettingsState>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
-        Self::new(3)
+        Self::new(Config::default())
     }
 }
 
 impl AppState {
-    pub fn new(workspace_count: usize) -> Self {
-        let workspace_count = workspace_count.clamp(1, 9);
+    pub fn new(config: Config) -> Self {
+        let config = config.normalized();
+        let workspace_count = config.workspace_count;
         let workspace_hint = if workspace_count == 1 {
             "F1 workspace".to_owned()
         } else {
@@ -161,7 +166,32 @@ impl AppState {
             input_debug_line: String::new(),
             window_pick_mode: false,
             should_quit: false,
+            config,
+            settings_views: HashMap::new(),
         }
+    }
+
+    pub fn settings_view(&self, window_id: WindowId) -> Option<&SettingsState> {
+        self.settings_views.get(&window_id)
+    }
+
+    pub(crate) fn init_settings_view(&mut self, window_id: WindowId) {
+        let theme_preset_index = crate::app::theme_presets::index_for_theme(&self.config.theme);
+        self.settings_views.insert(
+            window_id,
+            SettingsState {
+                selected: 0,
+                theme_preset_index,
+            },
+        );
+    }
+
+    pub(crate) fn remove_settings_view(&mut self, window_id: WindowId) {
+        self.settings_views.remove(&window_id);
+    }
+
+    pub(crate) fn settings_view_mut(&mut self, window_id: WindowId) -> Option<&mut SettingsState> {
+        self.settings_views.get_mut(&window_id)
     }
 }
 
@@ -214,10 +244,7 @@ impl AppState {
 
     pub(crate) fn set_terminal_content(&mut self, window_id: WindowId, content: String) {
         self.terminal_contents.insert(window_id, content.clone());
-        let view = self
-            .terminal_views
-            .entry(window_id)
-            .or_default();
+        let view = self.terminal_views.entry(window_id).or_default();
         let follow = view.follow_output();
         view.update_screen(&content);
         if follow {
@@ -226,10 +253,7 @@ impl AppState {
     }
 
     pub(crate) fn set_terminal_title(&mut self, window_id: WindowId, title: String) {
-        self.terminal_views
-            .entry(window_id)
-            .or_default()
-            .title = Some(title);
+        self.terminal_views.entry(window_id).or_default().title = Some(title);
     }
 
     pub fn terminal_view(&self, window_id: WindowId) -> Option<&TerminalViewState> {
@@ -237,9 +261,7 @@ impl AppState {
     }
 
     pub(crate) fn terminal_view_mut(&mut self, window_id: WindowId) -> &mut TerminalViewState {
-        self.terminal_views
-            .entry(window_id)
-            .or_default()
+        self.terminal_views.entry(window_id).or_default()
     }
 
     pub(crate) fn remove_terminal_content(&mut self, window_id: WindowId) {

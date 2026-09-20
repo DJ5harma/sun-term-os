@@ -62,7 +62,7 @@ pub fn all_entries(state: &AppState) -> Vec<PaletteEntry> {
     entries.extend(apps::palette_extras(state));
 
     entries.push(PaletteEntry {
-        title: "Quit TDE".to_owned(),
+        title: "Quit sun-term-os".to_owned(),
         detail: "Exit the desktop".to_owned(),
         action: Action::Shell(ShellAction::Quit),
     });

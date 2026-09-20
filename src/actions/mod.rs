@@ -8,6 +8,7 @@ pub enum Action {
     FileManager(FileManagerAction),
     Process(ProcessAction),
     Terminal(TerminalAction),
+    Settings(SettingsAction),
     Async(AsyncAction),
 }
 
@@ -84,6 +85,14 @@ pub enum ProcessAction {
 pub enum TerminalAction {
     ScrollOutput(i32),
     ScrollToEnd,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsAction {
+    MoveSelection(i32),
+    ActivateRow,
+    AdjustRefresh(i32),
+    Save,
 }
 
 #[derive(Debug, Clone, PartialEq)]
