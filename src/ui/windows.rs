@@ -48,7 +48,16 @@ pub fn render(
             super::file_manager::render(frame, inner, state, window.id, interactions);
         }
         ApplicationKind::SystemInfo => system(frame, inner, state),
-        ApplicationKind::Processes => processes(frame, inner, state),
+        ApplicationKind::Processes => {
+            if let Some(manager) = state.process_manager(window.id) {
+                super::processes::render(frame, inner, state, window.id, manager, interactions);
+            } else {
+                frame.render_widget(
+                    Paragraph::new("Process manager is starting…").style(theme::muted()),
+                    inner,
+                );
+            }
+        }
     }
 }
 
@@ -109,65 +118,42 @@ fn system(frame: &mut Frame, area: Rect, state: &AppState) {
                     Row::new(vec![
                         "Memory".to_owned(),
                         format!(
-                            "{:.1}% used",
+                            "{:.1}% used ({:.1} / {:.1} GiB)",
                             if system.memory_total == 0 {
                                 0.0
                             } else {
                                 system.memory_used as f64 / system.memory_total as f64 * 100.0
-                            }
+                            },
+                            system.memory_used as f64 / 1_073_741_824.0,
+                            system.memory_total as f64 / 1_073_741_824.0,
                         ),
                     ]),
-                ],
-                [Constraint::Length(12), Constraint::Min(12)],
+                    Row::new(vec!["CPUs".to_owned(), system.cpu_count.to_string()]),
+                ]
+                .into_iter()
+                .chain(system.disks.iter().take(4).map(|disk| {
+                    let used_pct = if disk.total_bytes == 0 {
+                        0.0
+                    } else {
+                        (disk.total_bytes - disk.available_bytes) as f64 / disk.total_bytes as f64
+                            * 100.0
+                    };
+                    Row::new(vec![
+                        format!("Disk {}", disk.mount_point),
+                        format!(
+                            "{:.0}% free · {:.1}/{:.1} GiB",
+                            100.0 - used_pct,
+                            disk.available_bytes as f64 / 1_073_741_824.0,
+                            disk.total_bytes as f64 / 1_073_741_824.0,
+                        ),
+                    ])
+                }))
+                .collect::<Vec<Row>>(),
+                [Constraint::Length(16), Constraint::Min(12)],
             )
             .column_spacing(1)
             .style(Style::default().fg(theme::TEXT)),
             area,
         ),
-    }
-}
-
-fn processes(frame: &mut Frame, area: Rect, state: &AppState) {
-    match &state.processes {
-        Loadable::Loading => frame.render_widget(
-            Paragraph::new("Reading process table…").style(theme::muted()),
-            area,
-        ),
-        Loadable::Failed(error) => frame.render_widget(
-            Paragraph::new(error.as_str()).style(Style::default().fg(theme::RED)),
-            area,
-        ),
-        Loadable::Ready(processes) if processes.is_empty() => frame.render_widget(
-            Paragraph::new("No processes reported.").style(theme::muted()),
-            area,
-        ),
-        Loadable::Ready(processes) => {
-            let rows = processes
-                .iter()
-                .take(area.height.saturating_sub(2) as usize)
-                .map(|process| {
-                    Row::new(vec![
-                        process.pid.to_string(),
-                        process.name.clone(),
-                        format!("{:>5.1}%", process.cpu_percent),
-                        format!("{:.0}M", process.memory_bytes as f64 / 1_000_000.0),
-                    ])
-                });
-            frame.render_widget(
-                Table::new(
-                    rows,
-                    [
-                        Constraint::Length(7),
-                        Constraint::Min(12),
-                        Constraint::Length(8),
-                        Constraint::Length(10),
-                    ],
-                )
-                .header(Row::new(vec!["PID", "NAME", "CPU", "MEM"]).style(theme::muted()))
-                .column_spacing(1)
-                .style(Style::default().fg(theme::TEXT)),
-                area,
-            );
-        }
     }
 }

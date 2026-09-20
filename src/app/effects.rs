@@ -8,4 +8,6 @@ pub enum Effect {
     StartTerminal(WindowId),
     StopTerminal(WindowId),
     ReadDirectory(WindowId, PathBuf),
+    WriteTerminal(WindowId, Vec<u8>),
+    KillProcess(u32),
 }

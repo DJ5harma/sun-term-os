@@ -6,7 +6,7 @@ use crate::{actions::Action, domain::ApplicationKind};
 
 use super::{
     bindings::{match_global, match_modal, match_window_pick},
-    keybindings::{desktop_key, file_manager_key},
+    keybindings::{desktop_key, file_manager_key, process_filter_key, process_manager_key},
     normalize::normalize_key_event,
     terminal_encode::encode_key,
 };
@@ -22,6 +22,7 @@ pub enum FocusContext {
 pub struct KeyInputContext {
     pub focus: FocusContext,
     pub window_pick_mode: bool,
+    pub process_filter_active: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,11 +67,25 @@ pub fn dispatch_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
                 KeyDispatch::Consumed
             }
         }
-        FocusContext::Window(ApplicationKind::SystemInfo | ApplicationKind::Processes)
-        | FocusContext::Chrome => match desktop_key(normalized) {
-            Some(action) => KeyDispatch::Action(action),
-            None => KeyDispatch::Consumed,
-        },
+        FocusContext::Window(ApplicationKind::Processes) => {
+            if context.process_filter_active {
+                match process_filter_key(normalized) {
+                    Some(action) => KeyDispatch::Action(action),
+                    None => KeyDispatch::Consumed,
+                }
+            } else {
+                match process_manager_key(normalized) {
+                    Some(action) => KeyDispatch::Action(action),
+                    None => KeyDispatch::Consumed,
+                }
+            }
+        }
+        FocusContext::Window(ApplicationKind::SystemInfo) | FocusContext::Chrome => {
+            match desktop_key(normalized) {
+                Some(action) => KeyDispatch::Action(action),
+                None => KeyDispatch::Consumed,
+            }
+        }
     }
 }
 
@@ -83,6 +98,7 @@ mod tests {
         KeyInputContext {
             focus: FocusContext::Window(ApplicationKind::FileManager),
             window_pick_mode: false,
+            process_filter_active: false,
         }
     }
 
@@ -90,6 +106,7 @@ mod tests {
         KeyInputContext {
             focus: FocusContext::Window(ApplicationKind::Terminal),
             window_pick_mode: false,
+            process_filter_active: false,
         }
     }
 
@@ -97,6 +114,7 @@ mod tests {
         KeyInputContext {
             focus: FocusContext::Window(ApplicationKind::Terminal),
             window_pick_mode: true,
+            process_filter_active: false,
         }
     }
 

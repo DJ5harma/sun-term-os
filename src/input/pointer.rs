@@ -130,6 +130,9 @@ fn scroll_actions(
         PointerZone::Desktop if context.focused_app == Some(ApplicationKind::FileManager) => {
             Action::FileManagerPageScroll(delta)
         }
+        PointerZone::Desktop if context.focused_app == Some(ApplicationKind::Processes) => {
+            Action::ProcessPageScroll(delta)
+        }
         _ => return None,
     };
     Some(vec![action])

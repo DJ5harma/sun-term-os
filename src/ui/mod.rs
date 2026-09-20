@@ -5,6 +5,7 @@ mod bottom_bar;
 mod desktop;
 pub mod file_manager;
 mod launcher;
+mod processes;
 mod theme;
 mod top_bar;
 pub(crate) mod windows;

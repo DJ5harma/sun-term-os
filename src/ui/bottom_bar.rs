@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{
     app::{AppState, Loadable},
-    domain::ApplicationKind,
+    domain::{ApplicationKind, WindowState},
     input::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT},
 };
 
@@ -51,10 +51,21 @@ pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
             let cell = cells[index];
             let active = Some(window.id) == state.current_workspace().focused_window;
             let slot = index + 1;
+            let minimized = window.state == WindowState::Minimized;
             let label = if slot <= 9 {
-                format!("{slot}:{}", short_app_title(window.application))
+                let title = short_app_title(window.application);
+                if minimized {
+                    format!("{slot}:_{title}")
+                } else {
+                    format!("{slot}:{title}")
+                }
             } else {
-                window.application.title().to_owned()
+                let title = window.application.title();
+                if minimized {
+                    format!("_{title}")
+                } else {
+                    title.to_owned()
+                }
             };
             let style = if active {
                 theme::active()
