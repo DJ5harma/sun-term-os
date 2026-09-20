@@ -9,15 +9,32 @@ use crate::app::Loadable;
 
 use super::theme;
 
-pub fn render(frame: &mut Frame, area: Rect, listing: &Loadable<crate::machine::SystemSnapshot>) {
+pub fn render(
+    frame: &mut Frame,
+    area: Rect,
+    listing: &Loadable<crate::machine::SystemSnapshot>,
+    refreshed_at: Option<u64>,
+) {
+    let footer = refreshed_at
+        .map(format_age)
+        .unwrap_or_else(|| "Press r to refresh".to_owned());
+    if area.height < 3 {
+        frame.render_widget(Paragraph::new(footer).style(theme::muted()), area);
+        return;
+    }
+    let chunks = ratatui::layout::Layout::vertical([
+        ratatui::layout::Constraint::Min(1),
+        ratatui::layout::Constraint::Length(1),
+    ])
+    .split(area);
     match listing {
         Loadable::Loading => frame.render_widget(
             Paragraph::new("Collecting system telemetry…").style(theme::muted()),
-            area,
+            chunks[0],
         ),
         Loadable::Failed(error) => frame.render_widget(
-            Paragraph::new(error.as_str()).style(Style::default().fg(theme::RED)),
-            area,
+            Paragraph::new(error.as_str()).style(Style::default().fg(theme::red())),
+            chunks[0],
         ),
         Loadable::Ready(system) => frame.render_widget(
             Table::new(
@@ -31,6 +48,13 @@ pub fn render(frame: &mut Frame, area: Rect, listing: &Loadable<crate::machine::
                             "{}h {:02}m",
                             system.uptime_seconds / 3600,
                             (system.uptime_seconds % 3600) / 60
+                        ),
+                    ]),
+                    Row::new(vec![
+                        "Load".to_owned(),
+                        format!(
+                            "{:.2} {:.2} {:.2}",
+                            system.load_one, system.load_five, system.load_fifteen
                         ),
                     ]),
                     Row::new(vec![
@@ -49,7 +73,7 @@ pub fn render(frame: &mut Frame, area: Rect, listing: &Loadable<crate::machine::
                     Row::new(vec!["CPUs".to_owned(), system.cpu_count.to_string()]),
                 ]
                 .into_iter()
-                .chain(system.disks.iter().take(4).map(|disk| {
+                .chain(system.disks.iter().take(6).map(|disk| {
                     let used_pct = if disk.total_bytes == 0 {
                         0.0
                     } else {
@@ -70,8 +94,22 @@ pub fn render(frame: &mut Frame, area: Rect, listing: &Loadable<crate::machine::
                 [Constraint::Length(16), Constraint::Min(12)],
             )
             .column_spacing(1)
-            .style(Style::default().fg(theme::TEXT)),
-            area,
+            .style(Style::default().fg(theme::text())),
+            chunks[0],
         ),
+    }
+    frame.render_widget(Paragraph::new(footer).style(theme::muted()), chunks[1]);
+}
+
+fn format_age(refreshed_at: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let age = now.saturating_sub(refreshed_at);
+    if age < 5 {
+        "Updated just now · r refresh".to_owned()
+    } else {
+        format!("Updated {age}s ago · r refresh")
     }
 }

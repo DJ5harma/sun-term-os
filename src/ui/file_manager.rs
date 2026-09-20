@@ -386,9 +386,12 @@ fn render_status(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
             };
             format!("  New {label}: {input}▌  Enter create · Esc cancel")
         }
+        FileManagerDialog::GoToPath { input } => {
+            format!("  Go to: {input}▌  Enter · Esc cancel")
+        }
         FileManagerDialog::None => match &manager.listing {
             Loadable::Ready(listing) => format!(
-                "  {} items · a file · A folder · d trash · Shift+R rename · o terminal",
+                "  {} items · : path · a/A new · d trash · Shift+R rename · o term · Shift+O open",
                 listing.entries.len() + usize::from(listing.path.parent().is_some()),
             ),
             Loadable::Loading => "  Reading…".to_owned(),

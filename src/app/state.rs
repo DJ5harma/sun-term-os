@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::{
-    app::file_manager::standard_places,
+    app::{file_manager::standard_places, terminal_view::TerminalViewState},
     domain::{Window, WindowId, WindowState, Workspace},
     machine::{DirectoryListing, ProcessInfo, SystemSnapshot},
 };
@@ -15,6 +15,7 @@ pub enum FileManagerDialog {
     DeleteConfirm { path: PathBuf, label: String },
     Rename { path: PathBuf, input: String },
     Create { kind: CreateKind, input: String },
+    GoToPath { input: String },
 }
 pub use super::process_manager::ProcessManagerState;
 
@@ -95,7 +96,12 @@ pub struct AppState {
     pub launcher_visible_rows: usize,
     pub next_window_id: WindowId,
     pub terminal_contents: HashMap<WindowId, String>,
+    pub terminal_views: HashMap<WindowId, TerminalViewState>,
     pub terminal_statuses: HashMap<WindowId, TerminalStatus>,
+    /// Unix seconds when system/process data last refreshed successfully.
+    pub capabilities_refreshed_at: Option<u64>,
+    /// Updated each frame from desktop geometry (terminal scrollback).
+    pub terminal_body_rows: usize,
     pub file_managers: HashMap<WindowId, FileManagerState>,
     pub process_managers: HashMap<WindowId, ProcessManagerState>,
     pub system_info_views: HashMap<WindowId, Loadable<SystemSnapshot>>,
@@ -139,7 +145,10 @@ impl AppState {
             launcher_visible_rows: 8,
             next_window_id: 1,
             terminal_contents: HashMap::new(),
+            terminal_views: HashMap::new(),
             terminal_statuses: HashMap::new(),
+            capabilities_refreshed_at: None,
+            terminal_body_rows: 20,
             file_managers: HashMap::new(),
             process_managers: HashMap::new(),
             system_info_views: HashMap::new(),
@@ -204,11 +213,38 @@ impl AppState {
     }
 
     pub(crate) fn set_terminal_content(&mut self, window_id: WindowId, content: String) {
-        self.terminal_contents.insert(window_id, content);
+        self.terminal_contents.insert(window_id, content.clone());
+        let view = self
+            .terminal_views
+            .entry(window_id)
+            .or_default();
+        let follow = view.follow_output();
+        view.update_screen(&content);
+        if follow {
+            view.reset_scroll();
+        }
+    }
+
+    pub(crate) fn set_terminal_title(&mut self, window_id: WindowId, title: String) {
+        self.terminal_views
+            .entry(window_id)
+            .or_default()
+            .title = Some(title);
+    }
+
+    pub fn terminal_view(&self, window_id: WindowId) -> Option<&TerminalViewState> {
+        self.terminal_views.get(&window_id)
+    }
+
+    pub(crate) fn terminal_view_mut(&mut self, window_id: WindowId) -> &mut TerminalViewState {
+        self.terminal_views
+            .entry(window_id)
+            .or_default()
     }
 
     pub(crate) fn remove_terminal_content(&mut self, window_id: WindowId) {
         self.terminal_contents.remove(&window_id);
+        self.terminal_views.remove(&window_id);
     }
 
     pub fn terminal_status(&self, window_id: WindowId) -> Option<&TerminalStatus> {

@@ -4,7 +4,9 @@ pub mod palette;
 pub mod process_manager;
 pub(crate) mod reducer;
 pub mod runtime;
+pub(crate) mod session;
 pub mod state;
+pub mod terminal_view;
 
 pub use crate::domain::{ApplicationKind, Window, WindowState};
 pub use runtime::AppRuntime;

@@ -38,6 +38,7 @@ struct Cli {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = crate::config::load(cli.config.as_deref())?;
+    ui::theme::init(&config.theme);
     enable_terminal()?;
     let result = run(config).await;
     disable_terminal()?;

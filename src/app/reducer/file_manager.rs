@@ -148,6 +148,29 @@ pub(super) fn reduce(state: &mut AppState, action: FileManagerAction) -> Vec<Eff
             }
         }
         FileManagerAction::FileManagerOpenInTerminal => return open_selection_in_terminal(state),
+        FileManagerAction::FileManagerBeginGoToPath => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+            {
+                manager.dialog = FileManagerDialog::GoToPath {
+                    input: manager.current_path.display().to_string(),
+                };
+                state.status = "Go to path · type folder · Enter · Esc cancel".to_owned();
+            } else {
+                state.status = "Open a file manager window first".to_owned();
+            }
+        }
+        FileManagerAction::FileManagerOpenWithSystem => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager(window_id)
+                && let Some(path) = selected_entry_path(manager)
+            {
+                return vec![Effect::FileManager(
+                    crate::app::effects::FileManagerEffect::OpenWithSystem(path),
+                )];
+            }
+            state.status = "Select a file to open with the system handler".to_owned();
+        }
         FileManagerAction::FileManagerRequestDelete => {
             if let Some(window_id) = resolve_file_manager_window(state)
                 && let Some(manager) = state.file_manager(window_id)
@@ -234,7 +257,8 @@ pub(super) fn reduce(state: &mut AppState, action: FileManagerAction) -> Vec<Eff
             {
                 match &mut manager.dialog {
                     FileManagerDialog::Rename { input, .. }
-                    | FileManagerDialog::Create { input, .. } => input.push(character),
+                    | FileManagerDialog::Create { input, .. }
+                    | FileManagerDialog::GoToPath { input } => input.push(character),
                     _ => {}
                 }
             }
@@ -245,7 +269,8 @@ pub(super) fn reduce(state: &mut AppState, action: FileManagerAction) -> Vec<Eff
             {
                 match &mut manager.dialog {
                     FileManagerDialog::Rename { input, .. }
-                    | FileManagerDialog::Create { input, .. } => {
+                    | FileManagerDialog::Create { input, .. }
+                    | FileManagerDialog::GoToPath { input } => {
                         input.pop();
                     }
                     _ => {}
@@ -305,6 +330,17 @@ fn commit_file_manager_dialog(state: &mut AppState) -> Vec<Effect> {
             vec![Effect::FileManager(
                 crate::app::effects::FileManagerEffect::CreateEntry(window_id, path, kind),
             )]
+        }
+        FileManagerDialog::GoToPath { input } => {
+            let path = PathBuf::from(input.trim());
+            if path.as_os_str().is_empty() {
+                state.status = "Enter a path".to_owned();
+                return Vec::new();
+            }
+            if let Some(manager) = state.file_manager_mut(window_id) {
+                manager.dialog = FileManagerDialog::None;
+            }
+            navigate_file_manager(state, window_id, path, true)
         }
         _ => Vec::new(),
     }

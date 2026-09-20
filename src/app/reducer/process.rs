@@ -80,8 +80,13 @@ pub(super) fn reduce(state: &mut AppState, action: ProcessAction) -> Vec<Effect>
                     let Loadable::Ready(processes) = &manager.listing else {
                         return None;
                     };
-                    selected_process(processes, &manager.filter, manager.selected_index)
-                        .map(|process| (process.pid, process.name.clone()))
+                    selected_process(
+                        processes,
+                        &manager.filter,
+                        manager.sort,
+                        manager.selected_index,
+                    )
+                    .map(|process| (process.pid, process.name.clone()))
                 })
             });
             if let Some((pid, name)) = kill {
@@ -91,6 +96,41 @@ pub(super) fn reduce(state: &mut AppState, action: ProcessAction) -> Vec<Effect>
                 ))];
             }
             state.status = "No process selected".to_owned();
+        }
+        ProcessAction::ProcessKillForceSelected => {
+            let kill = focused_process_window(state).and_then(|window_id| {
+                state.process_manager(window_id).and_then(|manager| {
+                    let Loadable::Ready(processes) = &manager.listing else {
+                        return None;
+                    };
+                    selected_process(
+                        processes,
+                        &manager.filter,
+                        manager.sort,
+                        manager.selected_index,
+                    )
+                    .map(|process| (process.pid, process.name.clone()))
+                })
+            });
+            if let Some((pid, name)) = kill {
+                state.status = format!("Sending SIGKILL to {name} ({pid})");
+                return vec![Effect::Process(
+                    crate::app::effects::ProcessEffect::KillForce(pid),
+                )];
+            }
+            state.status = "No process selected".to_owned();
+        }
+        ProcessAction::ProcessSetSort(sort) => {
+            if let Some(window_id) = focused_process_window(state) {
+                if let Some(manager) = state.process_manager_mut(window_id) {
+                    manager.sort = sort;
+                }
+                let count = process_match_count(state, window_id);
+                if let Some(manager) = state.process_manager_mut(window_id) {
+                    manager.clamp_selection(count);
+                }
+                state.status = format!("Sort by {}", sort.label());
+            }
         }
         ProcessAction::SelectProcessRow(window_id, index) => {
             if focused_process_window(state) == Some(window_id) {
@@ -119,7 +159,9 @@ fn process_match_count(state: &AppState, window_id: u64) -> usize {
         return 0;
     };
     match &manager.listing {
-        Loadable::Ready(processes) => matching_indices(processes, &manager.filter).len(),
+        Loadable::Ready(processes) => {
+            matching_indices(processes, &manager.filter, manager.sort).len()
+        }
         _ => 0,
     }
 }

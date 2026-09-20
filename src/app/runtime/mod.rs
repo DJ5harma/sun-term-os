@@ -1,5 +1,6 @@
 mod effects;
 mod sync;
+mod watches;
 
 pub use effects::EffectExecutor;
 pub use sync::{
@@ -17,7 +18,9 @@ use tokio::time::{self, MissedTickBehavior};
 use crate::{
     actions::{Action, ShellAction},
     app::{
-        ApplicationKind, reducer,
+        ApplicationKind,
+        effects::Effect,
+        reducer, session,
         state::{AppState, TerminalStatus},
     },
     config::Config,
@@ -30,25 +33,33 @@ use crate::{
 
 pub struct AppRuntime {
     pub state: AppState,
+    config: Config,
     refresh_interval_secs: u64,
     geometry: ui::geometry::UiGeometry,
     mouse_click: input::DoubleClickState,
     interactions: ui::interaction::InteractionMap,
     executor: EffectExecutor,
+    pending_session_effects: Vec<Effect>,
 }
 
 impl AppRuntime {
     pub fn new(config: Config, machine: Machine) -> Self {
         let config = config.normalized();
+        let refresh_interval_secs = config.refresh_interval_secs;
+        let mut state = AppState::new(config.workspace_count);
+        let pending_session = session::restore_effects(&mut state, &config.session);
         Self {
-            state: AppState::new(config.workspace_count),
-            refresh_interval_secs: config.refresh_interval_secs,
+            state,
+            config,
+            refresh_interval_secs,
+            pending_session_effects: pending_session,
             geometry: ui::geometry::UiGeometry::default(),
             mouse_click: input::DoubleClickState::default(),
             interactions: ui::interaction::InteractionMap::default(),
             executor: EffectExecutor {
                 machine,
                 terminal_manager: TerminalManager::default(),
+                directory_watches: watches::DirectoryWatchHub::new(),
             },
         }
     }
@@ -57,6 +68,10 @@ impl AppRuntime {
         let mut ticker = time::interval(Duration::from_secs(self.refresh_interval_secs));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut input_events = spawn_input_reader();
+        let startup_effects = std::mem::take(&mut self.pending_session_effects);
+        if !startup_effects.is_empty() {
+            self.executor.run(&mut self.state, startup_effects).await;
+        }
         self.dispatch(Action::Shell(ShellAction::Refresh)).await;
 
         while !self.state.should_quit {
@@ -68,6 +83,9 @@ impl AppRuntime {
             sync_file_manager_visible_rows(&mut self.state, &self.geometry);
             sync_process_manager_visible_rows(&mut self.state, &self.geometry);
             sync_palette_selection(&mut self.state, &self.geometry);
+            self.state.terminal_body_rows =
+                self.geometry.desktop.height.saturating_sub(4).max(1) as usize;
+            self.refresh_watched_directories().await;
             self.resize_focused_terminal();
             self.interactions.clear();
             terminal.draw(|frame| {
@@ -88,7 +106,27 @@ impl AppRuntime {
                 }
             }
         }
+        session::save_if_configured(&self.state, &self.config.session);
         Ok(())
+    }
+
+    async fn refresh_watched_directories(&mut self) {
+        while let Some(window_id) = self.executor.directory_watches.poll_ready() {
+            if let Some(path) = self
+                .state
+                .file_manager(window_id)
+                .map(|manager| manager.current_path.clone())
+            {
+                self.executor
+                    .run(
+                        &mut self.state,
+                        vec![Effect::FileManager(
+                            crate::app::effects::FileManagerEffect::ReadDirectory(window_id, path),
+                        )],
+                    )
+                    .await;
+            }
+        }
     }
 
     async fn handle_event(&mut self, event: Event) {
@@ -156,6 +194,9 @@ impl AppRuntime {
     fn handle_terminal_event(&mut self, event: TerminalEvent) {
         match event {
             TerminalEvent::Output { window_id, bytes } => {
+                if let Some(title) = crate::app::terminal_view::parse_terminal_title(&bytes) {
+                    self.state.set_terminal_title(window_id, title);
+                }
                 if let Some(content) = self
                     .executor
                     .terminal_manager

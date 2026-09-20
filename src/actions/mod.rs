@@ -7,6 +7,7 @@ pub enum Action {
     Palette(PaletteAction),
     FileManager(FileManagerAction),
     Process(ProcessAction),
+    Terminal(TerminalAction),
     Async(AsyncAction),
 }
 
@@ -61,6 +62,8 @@ pub enum FileManagerAction {
     FileManagerDialogPush(char),
     FileManagerDialogBackspace,
     FileManagerDialogCommit,
+    FileManagerBeginGoToPath,
+    FileManagerOpenWithSystem,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,7 +75,15 @@ pub enum ProcessAction {
     ProcessFilterBackspace,
     ProcessFilterEnd,
     ProcessKillSelected,
+    ProcessKillForceSelected,
+    ProcessSetSort(crate::app::process_manager::ProcessSortColumn),
     SelectProcessRow(WindowId, usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAction {
+    ScrollOutput(i32),
+    ScrollToEnd,
 }
 
 #[derive(Debug, Clone, PartialEq)]
