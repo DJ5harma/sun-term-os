@@ -52,7 +52,7 @@ cargo test
 | Workspaces | `F1`–`F3` or click workspace tabs |
 | Focus window by slot | `Ctrl+G` then `1`–`9` (matches bottom bar order) |
 | Close / minimize / maximize window | `Ctrl+W` / `Ctrl+M` / `Ctrl+F` |
-| File manager: open in terminal | `o` |
+| File manager: open terminal in folder | `o` (folders only) |
 | File manager: trash/delete (confirm) | `d` or `Delete` (uses system trash when available) |
 | File manager: rename | `Shift+R` |
 | File manager: new file / folder | `a` / `Shift+A` |

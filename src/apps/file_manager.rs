@@ -325,8 +325,8 @@ pub fn palette_entries(state: &AppState) -> Vec<PaletteEntry> {
             action: Action::FileManager(FileManagerAction::FileManagerOpenWithSystem),
         },
         PaletteEntry {
-            title: "Open in terminal".to_owned(),
-            detail: "File manager · run shell in selection".to_owned(),
+            title: "Open folder in terminal".to_owned(),
+            detail: "File manager · o opens a new terminal in the selected folder".to_owned(),
             action: Action::FileManager(FileManagerAction::FileManagerOpenInTerminal),
         },
         PaletteEntry {

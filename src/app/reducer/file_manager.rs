@@ -390,12 +390,11 @@ fn open_selection_in_terminal(state: &mut AppState) -> Vec<Effect> {
                 if entry.kind == FileEntryKind::Directory {
                     Some(format!("cd {}\n", shell_single_quoted(&path)))
                 } else {
-                    let parent = shell_single_quoted(listing.path.as_path());
-                    let file = shell_single_quoted(&path);
-                    Some(format!(
-                        "cd {} && (command -v less >/dev/null && less {file} || cat {file})\n",
-                        parent
-                    ))
+                    state.status = format!(
+                        "{} · o opens a terminal in folders — e view · Shift+O system",
+                        entry.name
+                    );
+                    return Vec::new();
                 }
             }
             None => None,
@@ -517,7 +516,7 @@ fn open_selected_entry(state: &mut AppState) -> Vec<Effect> {
                 let path = listing.path.join(&entry.name);
                 return navigate_file_manager(state, window_id, path, true);
             }
-            state.status = format!("{} · press o to open in a terminal", entry.name);
+            state.status = format!("{} · e to view · Shift+O system", entry.name);
         }
         None => {}
     }
