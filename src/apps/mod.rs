@@ -1,11 +1,16 @@
 //! Built-in applications: lifecycle, render, input, effects, and palette contributions.
 
 mod file_manager;
+pub(crate) mod launcher;
+mod launcher_catalog;
+mod machines;
 mod processes;
+mod services;
 mod settings;
 pub(crate) mod shell_keys;
 mod system_info;
 mod terminal;
+pub(crate) mod text_viewer;
 
 use crossterm::event::KeyEvent;
 use ratatui::{Frame, layout::Rect};
@@ -48,12 +53,16 @@ pub struct BuiltInApp {
     pub palette_extras: Option<PaletteExtrasFn>,
 }
 
-const BUILT_INS: [BuiltInApp; 5] = [
+const BUILT_INS: [BuiltInApp; 9] = [
     terminal::APP,
     file_manager::APP,
     processes::APP,
     system_info::APP,
     settings::APP,
+    machines::APP,
+    launcher::APP,
+    text_viewer::APP,
+    services::APP,
 ];
 
 pub fn all() -> &'static [BuiltInApp] {
@@ -164,5 +173,9 @@ pub async fn run_effect(
         Effect::Terminal(effect) => terminal::run_effect(executor, state, effect).await,
         Effect::FileManager(effect) => file_manager::run_effect(executor, state, effect).await,
         Effect::Process(effect) => processes::run_effect(executor, state, effect).await,
+        Effect::Machines(effect) => machines::run_effect(executor, state, effect).await,
+        Effect::Launcher(effect) => launcher::run_effect(executor, state, effect).await,
+        Effect::TextViewer(effect) => text_viewer::run_effect(executor, state, effect).await,
+        Effect::Services(effect) => services::run_effect(executor, state, effect).await,
     }
 }

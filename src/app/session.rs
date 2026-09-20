@@ -24,6 +24,7 @@ pub fn restore_effects(state: &mut AppState, config: &SessionConfig) -> Vec<Effe
     if file.workspaces.is_empty() {
         return Vec::new();
     }
+    state.active_machine_id = session::decode_machine_id(file.active_machine_id.as_deref());
     let mut effects = Vec::new();
     for (index, saved) in file.workspaces.iter().enumerate() {
         if index >= state.workspaces.len() {
@@ -32,6 +33,11 @@ pub fn restore_effects(state: &mut AppState, config: &SessionConfig) -> Vec<Effe
         state.active_workspace = index;
         for window in &saved.windows {
             let window_id = open_application(state, window.application);
+            set_window_machine_id(
+                state,
+                window_id,
+                session::decode_machine_id(window.machine_id.as_deref()),
+            );
             effects.extend(open_application_effects(
                 state,
                 window.application,
@@ -49,9 +55,18 @@ pub fn restore_effects(state: &mut AppState, config: &SessionConfig) -> Vec<Effe
                     crate::app::effects::FileManagerEffect::ReadDirectory(window_id, path),
                 ));
             }
+            if window.application == ApplicationKind::TextViewer
+                && let Some(path) = window.text_viewer_path.clone()
+            {
+                state.init_text_viewer(window_id, path.clone());
+                effects.push(crate::app::effects::Effect::TextViewer(
+                    crate::app::effects::TextViewerEffect::Read(window_id, path),
+                ));
+            }
         }
     }
     state.active_workspace = file.active_workspace.min(state.workspaces.len() - 1);
+    state.active_machine_id = session::decode_machine_id(file.active_machine_id.as_deref());
     state.status = "Restored previous session".to_owned();
     effects
 }
@@ -67,6 +82,7 @@ pub fn save_if_configured(state: &AppState, config: &SessionConfig) {
 fn capture_session(state: &AppState) -> session::SessionFile {
     session::SessionFile {
         active_workspace: state.active_workspace,
+        active_machine_id: Some(session::encode_machine_id(&state.active_machine_id)),
         workspaces: state
             .workspaces
             .iter()
@@ -76,6 +92,7 @@ fn capture_session(state: &AppState) -> session::SessionFile {
                     .iter()
                     .map(|window| session::SessionWindow {
                         application: window.application,
+                        machine_id: Some(session::encode_machine_id(&window.machine_id)),
                         file_manager_path: if window.application == ApplicationKind::FileManager {
                             state
                                 .file_manager(window.id)
@@ -83,9 +100,31 @@ fn capture_session(state: &AppState) -> session::SessionFile {
                         } else {
                             None
                         },
+                        text_viewer_path: if window.application == ApplicationKind::TextViewer {
+                            state
+                                .text_viewer(window.id)
+                                .map(|viewer| viewer.path.clone())
+                        } else {
+                            None
+                        },
                     })
                     .collect(),
             })
             .collect(),
+    }
+}
+
+fn set_window_machine_id(
+    state: &mut AppState,
+    window_id: u64,
+    machine_id: crate::machine::MachineId,
+) {
+    if let Some(window) = state
+        .workspaces
+        .iter_mut()
+        .flat_map(|workspace| workspace.windows.iter_mut())
+        .find(|window| window.id == window_id)
+    {
+        window.machine_id = machine_id;
     }
 }

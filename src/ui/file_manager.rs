@@ -391,7 +391,7 @@ fn render_status(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
         }
         FileManagerDialog::None => match &manager.listing {
             Loadable::Ready(listing) => format!(
-                "  {} items · : path · a/A new · d trash · Shift+R rename · o term · Shift+O open",
+                "  {} items · : path · a/A new · d trash · Shift+R rename · o term · e view · Shift+O system",
                 listing.entries.len() + usize::from(listing.path.parent().is_some()),
             ),
             Loadable::Loading => "  Reading…".to_owned(),

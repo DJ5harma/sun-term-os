@@ -5,7 +5,9 @@ use crate::{
     app::{file_manager::standard_places, terminal_view::TerminalViewState},
     config::Config,
     domain::{Window, WindowId, WindowState, Workspace},
-    machine::{DirectoryListing, ProcessInfo, SystemSnapshot},
+    machine::{
+        DirectoryListing, MachineId, ProcessInfo, SystemSnapshot, registry::ConnectionState,
+    },
 };
 
 pub use super::file_manager::{CreateKind, FileManagerFocus, FileSort, Place, SortColumn};
@@ -18,8 +20,12 @@ pub enum FileManagerDialog {
     Create { kind: CreateKind, input: String },
     GoToPath { input: String },
 }
+pub use super::launcher::LauncherState;
+pub use super::machines::MachinesState;
 pub use super::process_manager::ProcessManagerState;
+pub use super::services_manager::ServicesState;
 pub use super::settings::SettingsState;
+pub use super::text_viewer::TextViewerState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Loadable<T> {
@@ -102,13 +108,19 @@ pub struct AppState {
     pub terminal_statuses: HashMap<WindowId, TerminalStatus>,
     /// Unix seconds when system/process data last refreshed successfully.
     pub capabilities_refreshed_at: Option<u64>,
+    pub active_machine_id: MachineId,
+    pub systems: HashMap<MachineId, Loadable<SystemSnapshot>>,
+    pub process_lists: HashMap<MachineId, Loadable<Vec<ProcessInfo>>>,
+    pub machine_connections: HashMap<String, ConnectionState>,
     /// Updated each frame from desktop geometry (terminal scrollback).
     pub terminal_body_rows: usize,
     pub file_managers: HashMap<WindowId, FileManagerState>,
     pub process_managers: HashMap<WindowId, ProcessManagerState>,
     pub system_info_views: HashMap<WindowId, Loadable<SystemSnapshot>>,
-    pub system: Loadable<SystemSnapshot>,
-    pub processes: Loadable<Vec<ProcessInfo>>,
+    pub machines_views: HashMap<WindowId, MachinesState>,
+    pub launcher_views: HashMap<WindowId, LauncherState>,
+    pub text_viewers: HashMap<WindowId, TextViewerState>,
+    pub services_views: HashMap<WindowId, ServicesState>,
     pub status: String,
     pub input_debug: bool,
     pub input_debug_line: String,
@@ -153,12 +165,18 @@ impl AppState {
             terminal_views: HashMap::new(),
             terminal_statuses: HashMap::new(),
             capabilities_refreshed_at: None,
+            active_machine_id: MachineId::Local,
+            systems: HashMap::new(),
+            process_lists: HashMap::new(),
+            machine_connections: HashMap::new(),
             terminal_body_rows: 20,
             file_managers: HashMap::new(),
             process_managers: HashMap::new(),
             system_info_views: HashMap::new(),
-            system: Loadable::Loading,
-            processes: Loadable::Loading,
+            machines_views: HashMap::new(),
+            launcher_views: HashMap::new(),
+            text_viewers: HashMap::new(),
+            services_views: HashMap::new(),
             status: format!(
                 "Welcome · Alt+P palette (! for shell) · Ctrl+G 1–9 windows · {workspace_hint}"
             ),
@@ -219,11 +237,51 @@ impl AppState {
             .find(|window| window.id == focused)
     }
 
-    pub fn host_label(&self) -> &str {
-        match &self.system {
-            Loadable::Ready(snapshot) => snapshot.hostname.as_str(),
-            _ => "This machine",
+    pub fn host_label(&self) -> String {
+        self.host_label_for(&self.active_machine_id)
+    }
+
+    pub fn host_label_for(&self, machine_id: &MachineId) -> String {
+        if let Some(Loadable::Ready(snapshot)) = self.systems.get(machine_id) {
+            return snapshot.hostname.clone();
         }
+        match machine_id {
+            MachineId::Local => "Local".to_owned(),
+            MachineId::Named(id) => self
+                .config
+                .machines
+                .iter()
+                .find(|profile| profile.id == *id)
+                .map(|profile| profile.display_label().to_owned())
+                .unwrap_or_else(|| id.clone()),
+        }
+    }
+
+    pub fn window_machine_id(&self, window_id: WindowId) -> Option<MachineId> {
+        for workspace in &self.workspaces {
+            if let Some(window) = workspace
+                .windows
+                .iter()
+                .find(|window| window.id == window_id)
+            {
+                return Some(window.machine_id.clone());
+            }
+        }
+        None
+    }
+
+    pub fn system_for(&self, machine_id: &MachineId) -> Loadable<SystemSnapshot> {
+        self.systems
+            .get(machine_id)
+            .cloned()
+            .unwrap_or(Loadable::Loading)
+    }
+
+    pub fn processes_for(&self, machine_id: &MachineId) -> Loadable<Vec<ProcessInfo>> {
+        self.process_lists
+            .get(machine_id)
+            .cloned()
+            .unwrap_or(Loadable::Loading)
     }
 
     pub(crate) fn visible_window_ids(&self) -> Vec<WindowId> {
@@ -312,9 +370,14 @@ impl AppState {
         self.process_managers.get_mut(&window_id)
     }
 
-    pub(crate) fn init_process_manager(&mut self, window_id: WindowId) {
-        self.process_managers
-            .insert(window_id, ProcessManagerState::new());
+    pub(crate) fn init_process_manager(
+        &mut self,
+        window_id: WindowId,
+        listing: Loadable<Vec<ProcessInfo>>,
+    ) {
+        let mut manager = ProcessManagerState::new();
+        manager.listing = listing;
+        self.process_managers.insert(window_id, manager);
     }
 
     pub(crate) fn remove_process_manager(&mut self, window_id: WindowId) {
@@ -325,8 +388,12 @@ impl AppState {
         self.system_info_views.get(&window_id)
     }
 
-    pub(crate) fn init_system_info_view(&mut self, window_id: WindowId) {
-        self.system_info_views.insert(window_id, Loadable::Loading);
+    pub(crate) fn init_system_info_view(
+        &mut self,
+        window_id: WindowId,
+        listing: Loadable<SystemSnapshot>,
+    ) {
+        self.system_info_views.insert(window_id, listing);
     }
 
     pub(crate) fn remove_system_info_view(&mut self, window_id: WindowId) {
@@ -334,13 +401,82 @@ impl AppState {
     }
 
     pub(crate) fn mark_capability_refresh_loading(&mut self) {
-        self.system = Loadable::Loading;
-        self.processes = Loadable::Loading;
+        for listing in self.systems.values_mut() {
+            *listing = Loadable::Loading;
+        }
+        for listing in self.process_lists.values_mut() {
+            *listing = Loadable::Loading;
+        }
         for view in self.system_info_views.values_mut() {
             *view = Loadable::Loading;
         }
         for manager in self.process_managers.values_mut() {
             manager.listing = Loadable::Loading;
         }
+    }
+
+    pub(crate) fn init_machines_view(&mut self, window_id: WindowId) {
+        self.machines_views.insert(window_id, MachinesState::new());
+    }
+
+    pub(crate) fn remove_machines_view(&mut self, window_id: WindowId) {
+        self.machines_views.remove(&window_id);
+    }
+
+    pub fn machines_view(&self, window_id: WindowId) -> Option<&MachinesState> {
+        self.machines_views.get(&window_id)
+    }
+
+    pub(crate) fn machines_view_mut(&mut self, window_id: WindowId) -> Option<&mut MachinesState> {
+        self.machines_views.get_mut(&window_id)
+    }
+
+    pub(crate) fn init_launcher_view(&mut self, window_id: WindowId) {
+        self.launcher_views.insert(window_id, LauncherState::new());
+    }
+
+    pub(crate) fn remove_launcher_view(&mut self, window_id: WindowId) {
+        self.launcher_views.remove(&window_id);
+    }
+
+    pub fn launcher_view(&self, window_id: WindowId) -> Option<&LauncherState> {
+        self.launcher_views.get(&window_id)
+    }
+
+    pub(crate) fn launcher_view_mut(&mut self, window_id: WindowId) -> Option<&mut LauncherState> {
+        self.launcher_views.get_mut(&window_id)
+    }
+
+    pub(crate) fn init_text_viewer(&mut self, window_id: WindowId, path: PathBuf) {
+        self.text_viewers
+            .insert(window_id, TextViewerState::new(path));
+    }
+
+    pub(crate) fn remove_text_viewer(&mut self, window_id: WindowId) {
+        self.text_viewers.remove(&window_id);
+    }
+
+    pub fn text_viewer(&self, window_id: WindowId) -> Option<&TextViewerState> {
+        self.text_viewers.get(&window_id)
+    }
+
+    pub(crate) fn text_viewer_mut(&mut self, window_id: WindowId) -> Option<&mut TextViewerState> {
+        self.text_viewers.get_mut(&window_id)
+    }
+
+    pub(crate) fn init_services_view(&mut self, window_id: WindowId) {
+        self.services_views.insert(window_id, ServicesState::new());
+    }
+
+    pub(crate) fn remove_services_view(&mut self, window_id: WindowId) {
+        self.services_views.remove(&window_id);
+    }
+
+    pub fn services_view(&self, window_id: WindowId) -> Option<&ServicesState> {
+        self.services_views.get(&window_id)
+    }
+
+    pub(crate) fn services_view_mut(&mut self, window_id: WindowId) -> Option<&mut ServicesState> {
+        self.services_views.get_mut(&window_id)
     }
 }

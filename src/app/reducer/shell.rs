@@ -134,10 +134,12 @@ fn focus_window_by_offset(state: &mut AppState, offset: isize) {
 pub(crate) fn open_application(state: &mut AppState, application: ApplicationKind) -> u64 {
     let id = state.next_window_id;
     state.next_window_id += 1;
+    let machine_id = state.active_machine_id.clone();
     state.current_workspace_mut().windows.push(Window {
         id,
         application,
         state: WindowState::Normal,
+        machine_id,
     });
     state.current_workspace_mut().focused_window = Some(id);
     apps::on_open_window(state, application, id);

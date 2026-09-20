@@ -1,9 +1,13 @@
 use async_trait::async_trait;
 use sysinfo::{Disks, ProcessesToUpdate, Signal, System};
 
+pub mod applications;
 pub mod filesystem;
+pub mod services;
 
+pub use applications::LocalApplicationProvider;
 pub use filesystem::{LocalFilesystemProvider, default_start_path};
+pub use services::LocalServiceProvider;
 
 use super::{
     CapabilityError, DiskSnapshot, ProcessInfo, ProcessProvider, SystemInfoProvider, SystemSnapshot,

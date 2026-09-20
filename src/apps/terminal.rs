@@ -29,7 +29,19 @@ pub const APP: BuiltInApp = BuiltInApp {
     palette_extras: None,
 };
 
-pub fn on_open(_state: &mut AppState, window_id: WindowId) -> Vec<Effect> {
+pub fn on_open(state: &mut AppState, window_id: WindowId) -> Vec<Effect> {
+    if let Some(crate::machine::MachineId::Named(id)) = state.window_machine_id(window_id)
+        && let Some(profile) = state
+            .config
+            .machines
+            .iter()
+            .find(|profile| profile.id == id)
+    {
+        return vec![Effect::Terminal(TerminalEffect::StartSsh(
+            window_id,
+            profile.ssh_argv(),
+        ))];
+    }
     vec![Effect::Terminal(TerminalEffect::Start(window_id))]
 }
 
@@ -73,6 +85,28 @@ pub fn render(
     crate::ui::terminal::render(frame, area, state, window.id);
 }
 
+fn start_terminal(
+    executor: &mut crate::app::runtime::EffectExecutor,
+    state: &mut AppState,
+    window_id: WindowId,
+    argv: Option<Vec<String>>,
+) {
+    let result = if let Some(argv) = argv {
+        executor
+            .terminal_manager
+            .open_argv(window_id, 80, 24, &argv)
+    } else {
+        executor.terminal_manager.open(window_id, 80, 24)
+    };
+    match result {
+        Ok(()) => state.set_terminal_status(window_id, TerminalStatus::Running),
+        Err(error) => {
+            state.set_terminal_status(window_id, TerminalStatus::Failed(error.to_string()));
+            state.status = format!("Terminal failed to start: {error}");
+        }
+    }
+}
+
 pub async fn run_effect(
     executor: &mut crate::app::runtime::EffectExecutor,
     state: &mut AppState,
@@ -81,12 +115,16 @@ pub async fn run_effect(
     use crate::app::effects::TerminalEffect;
     match effect {
         TerminalEffect::Start(window_id) => {
-            if let Err(error) = executor.terminal_manager.open(window_id, 80, 24) {
-                state.set_terminal_status(window_id, TerminalStatus::Failed(error.to_string()));
-                state.status = format!("Terminal failed to start: {error}");
-            } else {
-                state.set_terminal_status(window_id, TerminalStatus::Running);
-            }
+            start_terminal(executor, state, window_id, None);
+        }
+        TerminalEffect::StartSsh(window_id, argv) => {
+            start_terminal(executor, state, window_id, Some(argv));
+        }
+        TerminalEffect::StartWithCommand(window_id, command) => {
+            start_terminal(executor, state, window_id, None);
+            let _ = executor
+                .terminal_manager
+                .write_input(window_id, format!("{command}\n").as_bytes());
         }
         TerminalEffect::Stop(window_id) => {
             executor.terminal_manager.close(window_id);

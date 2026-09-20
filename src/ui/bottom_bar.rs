@@ -72,7 +72,7 @@ pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
         }
     }
 
-    let process_count = match &state.processes {
+    let process_count = match &state.processes_for(&state.active_machine_id) {
         Loadable::Ready(processes) => format!("{} proc", processes.len()),
         Loadable::Loading => "proc…".to_owned(),
         Loadable::Failed(_) => "proc —".to_owned(),

@@ -44,6 +44,10 @@ cargo test
 | File manager | `f` |
 | Process manager | `p` |
 | System info | `s` |
+| Machines (SSH profiles) | `m` |
+| Application launcher | `l` |
+| Text viewer | `v` |
+| Service manager | Palette → **Service Manager** |
 | Refresh system/process data | `r` |
 | Workspaces | `F1`–`F3` or click workspace tabs |
 | Focus window by slot | `Ctrl+G` then `1`–`9` (matches bottom bar order) |
@@ -57,6 +61,10 @@ cargo test
 | Process manager: sort | `1` CPU · `2` memory · `3` name · `4` PID |
 | File manager: go to path | `:` |
 | File manager: open with OS handler | `Shift+O` |
+| File manager: open in text viewer | `e` (files) |
+| Machines: connect / disconnect | `c` / `d` · add host `a` |
+| Launcher: filter / launch | `/` · Enter |
+| Services: start / stop / restart | `s` / `x` / `r` |
 | Terminal: scrollback | `Alt+PgUp` / `Alt+PgDn` · `Alt+End` follow live |
 | Input debug overlay | `Ctrl+Alt+D` |
 

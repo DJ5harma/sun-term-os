@@ -42,8 +42,22 @@ impl Default for TerminalManager {
 
 impl TerminalManager {
     pub fn open(&mut self, window_id: WindowId, columns: u16, rows: u16) -> anyhow::Result<()> {
+        let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_owned());
+        self.open_argv(window_id, columns, rows, &[shell])
+    }
+
+    pub fn open_argv(
+        &mut self,
+        window_id: WindowId,
+        columns: u16,
+        rows: u16,
+        argv: &[String],
+    ) -> anyhow::Result<()> {
         if self.sessions.contains_key(&window_id) {
             return Ok(());
+        }
+        if argv.is_empty() {
+            return Err(anyhow::anyhow!("empty command"));
         }
         let size = PtySize {
             rows: rows.max(2),
@@ -52,8 +66,10 @@ impl TerminalManager {
             pixel_height: 0,
         };
         let pair = native_pty_system().openpty(size)?;
-        let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_owned());
-        let mut command = CommandBuilder::new(shell);
+        let mut command = CommandBuilder::new(argv[0].clone());
+        for arg in &argv[1..] {
+            command.arg(arg);
+        }
         command.env("TERM", "xterm-256color");
         let child = pair.slave.spawn_command(command)?;
         let reader = pair.master.try_clone_reader()?;

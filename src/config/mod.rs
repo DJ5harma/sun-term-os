@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+pub mod launcher;
+pub mod machines;
 pub mod paths;
 pub mod session;
 pub mod theme;
@@ -24,6 +26,10 @@ pub struct Config {
     pub theme: ThemeConfig,
     #[serde(default)]
     pub session: SessionConfig,
+    #[serde(default)]
+    pub machines: Vec<machines::MachineProfile>,
+    #[serde(default)]
+    pub launcher: launcher::LauncherConfig,
 }
 
 impl Default for Config {
@@ -33,6 +39,8 @@ impl Default for Config {
             workspace_count: default_workspace_count(),
             theme: ThemeConfig::default(),
             session: SessionConfig::default(),
+            machines: Vec::new(),
+            launcher: launcher::LauncherConfig::default(),
         }
     }
 }
@@ -54,6 +62,8 @@ impl Config {
             workspace_count: self.workspace_count.clamp(MIN_WORKSPACES, MAX_WORKSPACES),
             theme: self.theme,
             session: self.session,
+            machines: self.machines,
+            launcher: self.launcher,
         }
     }
 }
@@ -100,6 +110,8 @@ mod tests {
             workspace_count: 20,
             theme: ThemeConfig::default(),
             session: SessionConfig::default(),
+            machines: Vec::new(),
+            launcher: launcher::LauncherConfig::default(),
         }
         .normalized();
         assert_eq!(config.refresh_interval_secs, MIN_REFRESH_SECS);

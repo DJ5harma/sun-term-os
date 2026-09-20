@@ -19,6 +19,9 @@ tokio = { version = "1.47", features = ["macros", "rt-multi-thread", "sync", "ti
 portable-pty = "0.9"
 vt100 = "0.15"
 notify = "8.0"
+russh = "0.63"
+russh-sftp = "3.0"
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3.20"

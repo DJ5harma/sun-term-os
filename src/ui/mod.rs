@@ -1,14 +1,18 @@
 pub mod geometry;
 pub mod interaction;
 
+pub mod app_launcher;
 mod bottom_bar;
 mod desktop;
 pub mod file_manager;
-pub(crate) mod launcher;
+pub mod launcher;
+pub mod machines;
 pub(crate) mod processes;
+pub mod services;
 pub mod settings;
 pub mod system_info;
 pub mod terminal;
+pub mod text_viewer;
 pub(crate) mod theme;
 mod top_bar;
 pub(crate) mod windows;

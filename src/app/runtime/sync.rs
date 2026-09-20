@@ -6,6 +6,18 @@ use crate::{
     ui,
 };
 
+fn list_rows_in_window(
+    geometry: &ui::geometry::UiGeometry,
+    state: &AppState,
+    kind: ApplicationKind,
+) -> Option<usize> {
+    let window = state
+        .focused_window()
+        .filter(|window| window.application == kind)?;
+    let inner = ui::windows::content_inner(geometry.desktop, window, state);
+    Some(inner.height.saturating_sub(4).max(1) as usize)
+}
+
 pub fn sync_palette_selection(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {
     if !state.launcher_open {
         return;
@@ -44,6 +56,75 @@ pub fn sync_process_manager_visible_rows(
     if let Some(manager) = state.process_manager_mut(window.id) {
         manager.visible_rows = rows.max(1);
         manager.clamp_selection(match_count);
+    }
+}
+
+pub fn sync_launcher_visible_rows(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {
+    let Some(rows) = list_rows_in_window(geometry, state, ApplicationKind::Launcher) else {
+        return;
+    };
+    if let Some(window) = state.focused_window()
+        && let Some(view) = state.launcher_view_mut(window.id)
+    {
+        view.visible_rows = rows;
+        let count = match &view.listing {
+            Loadable::Ready(entries) => {
+                let filter = view.filter.to_lowercase();
+                entries
+                    .iter()
+                    .filter(|entry| {
+                        filter.is_empty()
+                            || format!("{} {}", entry.name, entry.detail)
+                                .to_lowercase()
+                                .contains(&filter)
+                    })
+                    .count()
+            }
+            _ => 0,
+        };
+        view.clamp_selection(count);
+    }
+}
+
+pub fn sync_services_visible_rows(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {
+    let Some(rows) = list_rows_in_window(geometry, state, ApplicationKind::Services) else {
+        return;
+    };
+    if let Some(window) = state.focused_window()
+        && let Some(view) = state.services_view_mut(window.id)
+    {
+        view.visible_rows = rows;
+        let count = match &view.listing {
+            Loadable::Ready(services) => {
+                let filter = view.filter.to_lowercase();
+                services
+                    .iter()
+                    .filter(|service| {
+                        filter.is_empty()
+                            || service.name.to_lowercase().contains(&filter)
+                            || service.active_state.to_lowercase().contains(&filter)
+                    })
+                    .count()
+            }
+            _ => 0,
+        };
+        view.clamp_selection(count);
+    }
+}
+
+pub fn sync_text_viewer_visible_rows(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {
+    let Some(rows) = list_rows_in_window(geometry, state, ApplicationKind::TextViewer) else {
+        return;
+    };
+    if let Some(window) = state.focused_window()
+        && let Some(view) = state.text_viewer_mut(window.id)
+    {
+        view.visible_rows = rows;
+        let line_count = match &view.content {
+            Loadable::Ready(text) => text.lines().count(),
+            _ => 0,
+        };
+        view.clamp_scroll(line_count);
     }
 }
 

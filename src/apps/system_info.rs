@@ -24,7 +24,11 @@ pub const APP: BuiltInApp = BuiltInApp {
 };
 
 pub fn on_open(state: &mut AppState, window_id: WindowId) -> Vec<Effect> {
-    state.init_system_info_view(window_id);
+    let machine_id = state
+        .window_machine_id(window_id)
+        .unwrap_or(crate::machine::MachineId::Local);
+    let listing = state.system_for(&machine_id);
+    state.init_system_info_view(window_id, listing);
     Vec::new()
 }
 

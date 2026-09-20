@@ -8,4 +8,8 @@ pub enum ApplicationKind {
     SystemInfo,
     Processes,
     Settings,
+    Machines,
+    Launcher,
+    TextViewer,
+    Services,
 }
