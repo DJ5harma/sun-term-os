@@ -69,8 +69,6 @@ pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
             };
             let style = if active {
                 theme::active()
-            } else if minimized {
-                Style::default().fg(theme::MUTED)
             } else {
                 Style::default().fg(theme::MUTED)
             };

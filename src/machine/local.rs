@@ -81,7 +81,6 @@ impl ProcessProvider for LocalProcessProvider {
     }
 
     async fn kill_process(&self, pid: u32) -> Result<(), CapabilityError> {
-        let pid = pid;
         tokio::task::spawn_blocking(move || {
             let mut system = System::new();
             system.refresh_processes(
@@ -93,7 +92,9 @@ impl ProcessProvider for LocalProcessProvider {
                 .ok_or_else(|| CapabilityError::Failed(format!("process {pid} not found")))?;
             match process.kill_with(Signal::Term) {
                 Some(true) => Ok(()),
-                _ => Err(CapabilityError::Failed(format!("could not signal PID {pid}"))),
+                _ => Err(CapabilityError::Failed(format!(
+                    "could not signal PID {pid}"
+                ))),
             }
         })
         .await

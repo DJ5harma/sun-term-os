@@ -298,15 +298,14 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             }
         }
         Action::ProcessKillSelected => {
-            if let Loadable::Ready(processes) = &state.processes {
-                if let Some(window_id) = focused_process_window(state)
-                    && let Some(manager) = state.process_manager(window_id)
-                    && let Some(process) =
-                        selected_process(processes, &manager.filter, manager.selected_index)
-                {
-                    state.status = format!("Sending SIGTERM to {} ({})", process.name, process.pid);
-                    return vec![Effect::KillProcess(process.pid)];
-                }
+            if let Loadable::Ready(processes) = &state.processes
+                && let Some(window_id) = focused_process_window(state)
+                && let Some(manager) = state.process_manager(window_id)
+                && let Some(process) =
+                    selected_process(processes, &manager.filter, manager.selected_index)
+            {
+                state.status = format!("Sending SIGTERM to {} ({})", process.name, process.pid);
+                return vec![Effect::KillProcess(process.pid)];
             }
             state.status = "No process selected".to_owned();
         }
