@@ -132,18 +132,17 @@ pub fn sync_services_visible_rows(state: &mut AppState, geometry: &ui::geometry:
 }
 
 pub fn sync_text_viewer_visible_rows(state: &mut AppState, geometry: &ui::geometry::UiGeometry) {
-    let Some(rows) = list_rows_in_window(geometry, state, ApplicationKind::TextViewer) else {
+    let Some(window) = state
+        .focused_window()
+        .filter(|window| window.application == ApplicationKind::TextViewer)
+    else {
         return;
     };
-    if let Some(window) = state.focused_window()
-        && let Some(view) = state.text_viewer_mut(window.id)
-    {
+    let inner = ui::windows::content_inner(geometry.desktop, window, state);
+    let rows = ui::text_viewer::layout(inner).body.height.max(1) as usize;
+    if let Some(view) = state.text_viewer_mut(window.id) {
         view.visible_rows = rows;
-        let line_count = match &view.content {
-            Loadable::Ready(text) => text.lines().count(),
-            _ => 0,
-        };
-        view.clamp_scroll(line_count);
+        view.ensure_cursor_visible();
     }
 }
 

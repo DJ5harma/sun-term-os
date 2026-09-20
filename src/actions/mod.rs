@@ -114,6 +114,7 @@ pub enum AsyncAction {
         Result<Vec<crate::machine::applications::ApplicationEntry>, String>,
     ),
     TextFileReady(WindowId, Result<String, String>),
+    TextFileSaveReady(WindowId, Result<(), String>),
     ServicesReady(
         MachineId,
         Result<Vec<crate::machine::services::ServiceInfo>, String>,
@@ -157,10 +158,23 @@ pub enum HomeScreenAction {
     ActivateSelected,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TextViewerAction {
-    Scroll(i32),
+    CursorUp,
+    CursorDown,
+    CursorLeft,
+    CursorRight,
+    CursorHome,
+    CursorEnd,
     PageScroll(i32),
+    ScrollView(i32),
+    InsertChar(char),
+    InsertTab,
+    Backspace,
+    Delete,
+    Save,
+    DiscardAndClose,
+    PlaceCaret { line: usize, col: usize },
     BeginOpenPath,
     DialogPush(char),
     DialogBackspace,
