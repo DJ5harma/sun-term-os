@@ -6,12 +6,26 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem},
 };
 
-use crate::app::{AppState, ApplicationKind};
+use ratatui::layout::{Constraint, Layout};
 
-use super::theme;
+use crate::{
+    actions::Action,
+    app::{AppState, ApplicationKind},
+};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
+use super::{hit_map::HitMap, theme};
+
+fn launcher_block() -> Block<'static> {
+    Block::default()
+        .title(" APPLICATION LAUNCHER ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::AMBER))
+        .style(Style::default().bg(theme::SURFACE))
+}
+
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
     frame.render_widget(Clear, area);
+    let inner = launcher_block().inner(area);
     let items = ApplicationKind::ALL
         .into_iter()
         .enumerate()
@@ -30,14 +44,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
                 ),
             ]))
         });
-    frame.render_widget(
-        List::new(items).block(
-            Block::default()
-                .title(" APPLICATION LAUNCHER ")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme::AMBER))
-                .style(Style::default().bg(theme::SURFACE)),
-        ),
-        area,
-    );
+    frame.render_widget(List::new(items).block(launcher_block()), area);
+    let rows = Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints(std::iter::repeat_n(
+            Constraint::Length(1),
+            ApplicationKind::ALL.len(),
+        ))
+        .split(inner);
+    for (application, row) in ApplicationKind::ALL.iter().zip(rows.iter()) {
+        hits.register(*row, Action::OpenApplication(*application));
+    }
 }

@@ -7,9 +7,9 @@ use ratatui::{
 
 use crate::app::AppState;
 
-use super::{theme, windows};
+use super::{hit_map::HitMap, theme, windows};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
     let workspace = state.current_workspace();
     if workspace.windows.is_empty() {
         let text = [
@@ -32,6 +32,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
             area,
         );
     } else if let Some(window) = state.focused_window() {
-        windows::render(frame, area, state, window);
+        windows::render(frame, area, state, window, hits);
     }
 }

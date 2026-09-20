@@ -1,12 +1,19 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
 };
 
+/// Gap between icon / name / size / modified columns (must match header and rows).
+const LIST_COLUMN_SPACING: u16 = 2;
+const ICON_COL_WIDTH: u16 = 2;
+const SIZE_COL_WIDTH: u16 = 10;
+const MODIFIED_COL_WIDTH: u16 = 19;
+
 use crate::{
+    actions::Action,
     app::{
         file_manager::{DisplayRowKind, SortColumn, display_row_count, display_row_kind},
         state::{AppState, FileManagerFocus, FileManagerState, FileSort, Loadable},
@@ -14,7 +21,7 @@ use crate::{
     machine::FileEntryKind,
 };
 
-use super::theme;
+use super::{hit_map::HitMap, theme};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FileManagerLayout {
@@ -23,18 +30,6 @@ pub struct FileManagerLayout {
     pub list_header: Rect,
     pub list_rows: Rect,
     pub status: Rect,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct FileManagerHitTargets {
-    pub back: Rect,
-    pub up: Rect,
-    pub home: Rect,
-    pub place_rows: Vec<(usize, Rect)>,
-    pub list_rows: Vec<(usize, Rect)>,
-    pub sort_name: Rect,
-    pub sort_size: Rect,
-    pub sort_modified: Rect,
 }
 
 pub fn layout(inner: Rect) -> FileManagerLayout {
@@ -64,59 +59,55 @@ pub fn layout(inner: Rect) -> FileManagerLayout {
     }
 }
 
-pub fn hit_targets(
-    layout: &FileManagerLayout,
-    manager: &FileManagerState,
-) -> FileManagerHitTargets {
-    let mut targets = FileManagerHitTargets::default();
-    if layout.toolbar.width >= 9 {
-        targets.back = Rect::new(layout.toolbar.x, layout.toolbar.y, 3, 1);
-        targets.up = Rect::new(layout.toolbar.x + 3, layout.toolbar.y, 3, 1);
-        targets.home = Rect::new(layout.toolbar.x + 6, layout.toolbar.y, 3, 1);
-    }
-    let place_count = manager.places.len();
-    if place_count > 0 && layout.places.height > 0 {
-        targets.place_rows = Layout::vertical(std::iter::repeat_n(
-            Constraint::Length(1),
-            place_count.min(layout.places.height as usize),
-        ))
-        .split(layout.places)
-        .iter()
-        .enumerate()
-        .map(|(index, rect)| (index, *rect))
-        .collect();
-    }
-    if let Loadable::Ready(listing) = &manager.listing {
-        let total = display_row_count(listing, &manager.current_path);
-        let visible = layout.list_rows.height.max(1) as usize;
-        let start = manager.scroll_offset;
-        let count = total.saturating_sub(start).min(visible);
-        targets.list_rows = Layout::vertical(std::iter::repeat_n(Constraint::Length(1), count))
-            .split(layout.list_rows)
-            .iter()
-            .enumerate()
-            .map(|(offset, rect)| (start + offset, *rect))
-            .collect();
-    }
-    if layout.list_header.width > 20 {
-        targets.sort_name = Rect::new(layout.list_header.x + 2, layout.list_header.y, 12, 1);
-        targets.sort_size = Rect::new(
-            layout.list_header.x + layout.list_header.width / 2,
-            layout.list_header.y,
-            8,
-            1,
-        );
-        targets.sort_modified = Rect::new(
-            layout.list_header.x + layout.list_header.width - 12,
-            layout.list_header.y,
-            12,
-            1,
-        );
-    }
-    targets
+fn places_panel_inner(area: Rect) -> Rect {
+    places_panel_block().inner(area)
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window_id: u64) {
+fn places_panel_block() -> Block<'static> {
+    Block::default()
+        .title(" Places ")
+        .borders(Borders::RIGHT)
+        .border_style(Style::default().fg(theme::SURFACE_ALT))
+}
+
+fn list_column_constraints() -> [Constraint; 4] {
+    [
+        Constraint::Length(ICON_COL_WIDTH),
+        Constraint::Min(8),
+        Constraint::Length(SIZE_COL_WIDTH),
+        Constraint::Length(MODIFIED_COL_WIDTH),
+    ]
+}
+
+fn list_column_rects(row: Rect) -> [Rect; 4] {
+    let chunks = Layout::horizontal(list_column_constraints())
+        .spacing(LIST_COLUMN_SPACING)
+        .split(row);
+    [chunks[0], chunks[1], chunks[2], chunks[3]]
+}
+
+fn list_table<'a, I>(rows: I) -> Table<'a>
+where
+    I: IntoIterator<Item = Row<'a>>,
+{
+    Table::new(rows, list_column_constraints()).column_spacing(LIST_COLUMN_SPACING)
+}
+
+fn cell_right(text: String) -> Cell<'static> {
+    Cell::from(Line::from(text).alignment(Alignment::Right))
+}
+
+fn cell_left(text: impl Into<String>) -> Cell<'static> {
+    Cell::from(text.into())
+}
+
+pub fn render(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    window_id: u64,
+    hits: &mut HitMap,
+) {
     let Some(manager) = state.file_manager(window_id) else {
         frame.render_widget(
             Paragraph::new("File manager state is unavailable.")
@@ -146,6 +137,68 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window_id: u64) {
             render_list(frame, layout.list_rows, manager, listing);
         }
     }
+    register_mouse_hits(hits, window_id, &layout, manager);
+}
+
+fn register_mouse_hits(
+    hits: &mut HitMap,
+    window_id: u64,
+    layout: &FileManagerLayout,
+    manager: &FileManagerState,
+) {
+    if layout.toolbar.width >= 9 {
+        hits.register(
+            Rect::new(layout.toolbar.x, layout.toolbar.y, 3, 1),
+            Action::FileManagerGoBack,
+        );
+        hits.register(
+            Rect::new(layout.toolbar.x + 3, layout.toolbar.y, 3, 1),
+            Action::FileManagerGoUp,
+        );
+        hits.register(
+            Rect::new(layout.toolbar.x + 6, layout.toolbar.y, 3, 1),
+            Action::FileManagerGoHome,
+        );
+    }
+
+    let places_inner = places_panel_inner(layout.places);
+    let place_count = manager.places.len();
+    if place_count > 0 && places_inner.height > 0 {
+        let visible_places = place_count.min(places_inner.height as usize);
+        let rows = Layout::vertical(std::iter::repeat_n(
+            Constraint::Length(1),
+            visible_places,
+        ))
+        .split(places_inner);
+        for (index, rect) in rows.iter().enumerate() {
+            hits.register(
+                *rect,
+                Action::SelectFileManagerPlace(window_id, index),
+            );
+        }
+    }
+
+    if layout.list_header.width > 20 {
+        let cols = list_column_rects(layout.list_header);
+        hits.register(cols[1], Action::FileManagerSetSort(SortColumn::Name));
+        hits.register(cols[2], Action::FileManagerSetSort(SortColumn::Size));
+        hits.register(cols[3], Action::FileManagerSetSort(SortColumn::Modified));
+    }
+
+    if let Loadable::Ready(listing) = &manager.listing {
+        let total = display_row_count(listing, &manager.current_path);
+        let visible = layout.list_rows.height.max(1) as usize;
+        let start = manager.scroll_offset;
+        let count = total.saturating_sub(start).min(visible);
+        let rows = Layout::vertical(std::iter::repeat_n(Constraint::Length(1), count))
+            .split(layout.list_rows);
+        for (offset, rect) in rows.iter().enumerate() {
+            hits.register(
+                *rect,
+                Action::SelectFileManagerRow(window_id, start + offset),
+            );
+        }
+    }
 }
 
 fn render_toolbar(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
@@ -165,10 +218,7 @@ fn render_toolbar(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
 }
 
 fn render_places(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
-    let block = Block::default()
-        .title(" Places ")
-        .borders(Borders::RIGHT)
-        .border_style(Style::default().fg(theme::SURFACE_ALT));
+    let block = places_panel_block();
     let inner = block.inner(area);
     frame.render_widget(block, area);
     if manager.places.is_empty() {
@@ -187,29 +237,33 @@ fn render_places(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
 }
 
 fn render_list_header(frame: &mut Frame, area: Rect, sort: FileSort) {
-    let line = Line::from(vec![
-        sort_label("Name", SortColumn::Name, sort),
-        Span::raw("  "),
-        sort_label("Size", SortColumn::Size, sort),
-        Span::raw("    "),
-        sort_label("Modified", SortColumn::Modified, sort),
+    let header = Row::new(vec![
+        Cell::from(""),
+        header_cell("Name", SortColumn::Name, sort, Alignment::Left),
+        header_cell("Size", SortColumn::Size, sort, Alignment::Right),
+        header_cell("Modified", SortColumn::Modified, sort, Alignment::Right),
     ]);
-    frame.render_widget(Paragraph::new(line), area);
+    frame.render_widget(list_table([header]).style(theme::muted()), area);
 }
 
-fn sort_label(title: &str, column: SortColumn, sort: FileSort) -> Span<'static> {
+fn header_cell(
+    title: &str,
+    column: SortColumn,
+    sort: FileSort,
+    alignment: Alignment,
+) -> Cell<'static> {
     let arrow = if sort.column == column {
         if sort.ascending { " ▲" } else { " ▼" }
     } else {
         ""
     };
-    let text = format!("{}{}", title, arrow);
+    let text = format!("{title}{arrow}");
     let style = if sort.column == column {
         theme::active()
     } else {
         theme::muted()
     };
-    Span::styled(text, style)
+    Cell::from(Line::from(text).alignment(alignment).style(style))
 }
 
 fn render_list(
@@ -235,19 +289,7 @@ fn render_list(
         };
         row_for_index(&manager.current_path, listing, index, style)
     });
-    frame.render_widget(
-        Table::new(
-            rows,
-            [
-                Constraint::Length(2),
-                Constraint::Min(10),
-                Constraint::Length(9),
-                Constraint::Length(16),
-            ],
-        )
-        .column_spacing(1),
-        area,
-    );
+    frame.render_widget(list_table(rows), area);
 }
 
 fn row_for_index(
@@ -259,9 +301,9 @@ fn row_for_index(
     match display_row_kind(path, listing, index) {
         Some(DisplayRowKind::Parent) => Row::new(vec![
             Cell::from("↰"),
-            Cell::from(".."),
-            Cell::from(""),
-            Cell::from(""),
+            cell_left(".."),
+            cell_right(String::new()),
+            cell_right(String::new()),
         ])
         .style(style),
         Some(DisplayRowKind::Entry) => {
@@ -269,9 +311,9 @@ fn row_for_index(
             let entry = listing.entries.get(index - offset).expect("entry index");
             Row::new(vec![
                 Cell::from(icon(entry.kind)),
-                Cell::from(entry.name.clone()),
-                Cell::from(format_size(entry.size_bytes, entry.kind)),
-                Cell::from(format_modified(entry.modified_secs)),
+                cell_left(entry.name.clone()),
+                cell_right(format_size(entry.size_bytes, entry.kind)),
+                cell_right(format_modified(entry.modified_secs)),
             ])
             .style(style)
         }
@@ -332,9 +374,9 @@ fn format_size(size_bytes: Option<u64>, kind: FileEntryKind) -> String {
         return "—".to_owned();
     }
     match size_bytes {
-        Some(bytes) if bytes >= 1_048_576 => format!("{:>7.1} MB", bytes as f64 / 1_048_576.0),
-        Some(bytes) if bytes >= 1024 => format!("{:>7.1} KB", bytes as f64 / 1024.0),
-        Some(bytes) => format!("{:>7} B", bytes),
+        Some(bytes) if bytes >= 1_048_576 => format!("{:.1} MB", bytes as f64 / 1_048_576.0),
+        Some(bytes) if bytes >= 1024 => format!("{:.1} KB", bytes as f64 / 1024.0),
+        Some(bytes) => format!("{} B", bytes),
         None => "—".to_owned(),
     }
 }
@@ -365,6 +407,14 @@ pub fn sync_visible_rows(manager: &mut FileManagerState, list_rows: Rect) {
 mod tests {
     use super::*;
     use ratatui::layout::Rect;
+
+    #[test]
+    fn places_sidebar_hits_use_inner_below_title() {
+        let area = Rect::new(4, 6, 18, 8);
+        let inner = places_panel_inner(area);
+        assert!(inner.y > area.y, "place rows must be below the Places title");
+        assert_eq!(inner.x, area.x);
+    }
 
     #[test]
     fn layout_splits_toolbar_places_and_list() {

@@ -6,9 +6,9 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use crate::app::AppState;
+use crate::{actions::Action, app::AppState};
 
-use super::{geometry::UiGeometry, theme};
+use super::{hit_map::HitMap, theme};
 
 /// Top bar column layout shared with hit-testing in [geometry].
 pub fn columns(area: Rect) -> [Rect; 3] {
@@ -23,8 +23,9 @@ pub fn columns(area: Rect) -> [Rect; 3] {
     [chunks[0], chunks[1], chunks[2]]
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeometry) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
     let [brand, workspaces, machine] = columns(area);
+    hits.register(brand, Action::ToggleLauncher);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(" TDE ", theme::active()),
@@ -50,6 +51,4 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeom
         .alignment(Alignment::Right),
         machine,
     );
-
-    let _ = geometry;
 }

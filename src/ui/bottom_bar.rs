@@ -6,9 +6,12 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use crate::app::{AppState, Loadable};
+use crate::{
+    actions::Action,
+    app::{AppState, Loadable},
+};
 
-use super::{geometry::UiGeometry, theme};
+use super::{hit_map::HitMap, theme};
 
 pub fn columns(area: Rect) -> [Rect; 3] {
     let chunks = Layout::default()
@@ -22,7 +25,7 @@ pub fn columns(area: Rect) -> [Rect; 3] {
     [chunks[0], chunks[1], chunks[2]]
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeometry) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap) {
     let [badge, windows, status] = columns(area);
     frame.render_widget(
         Paragraph::new(Span::styled(
@@ -49,6 +52,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeom
         window_spans.push(Span::styled(" — ", theme::muted()));
     }
     frame.render_widget(Paragraph::new(Line::from(window_spans)), windows);
+    let workspace_windows = &state.current_workspace().windows;
+    if !workspace_windows.is_empty() {
+        let cells = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(std::iter::repeat_n(
+                Constraint::Length(20),
+                workspace_windows.len(),
+            ))
+            .split(windows);
+        for (window, cell) in workspace_windows.iter().zip(cells.iter()) {
+            hits.register(*cell, Action::FocusWindow(window.id));
+        }
+    }
 
     let process_count = match &state.processes {
         Loadable::Ready(processes) => format!("{} proc", processes.len()),
@@ -64,5 +80,4 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, geometry: &UiGeom
         .alignment(Alignment::Right),
         status,
     );
-    let _ = geometry;
 }

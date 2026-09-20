@@ -29,6 +29,7 @@ pub struct App {
     pub state: AppState,
     geometry: ui::geometry::UiGeometry,
     mouse_click: input::DoubleClickState,
+    hit_map: ui::hit_map::HitMap,
     terminal_manager: TerminalManager,
     system_provider: Arc<dyn SystemInfoProvider>,
     process_provider: Arc<dyn ProcessProvider>,
@@ -45,6 +46,7 @@ impl App {
             state: AppState::default(),
             geometry: ui::geometry::UiGeometry::default(),
             mouse_click: input::DoubleClickState::default(),
+            hit_map: ui::hit_map::HitMap::default(),
             terminal_manager: TerminalManager::default(),
             system_provider,
             process_provider,
@@ -66,7 +68,9 @@ impl App {
             );
             self.sync_file_manager_visible_rows();
             self.resize_focused_terminal();
-            terminal.draw(|frame| ui::render(frame, &self.state, &self.geometry))?;
+            self.hit_map.clear();
+            terminal
+                .draw(|frame| ui::render(frame, &self.state, &self.geometry, &mut self.hit_map))?;
 
             tokio::select! {
                 _ = ticker.tick() => self.handle_event(Event::Tick).await,
@@ -116,6 +120,7 @@ impl App {
                     mouse,
                     &self.state,
                     &self.geometry,
+                    &self.hit_map,
                     &mut self.mouse_click,
                 );
                 let handled = !actions.is_empty();
@@ -199,7 +204,7 @@ impl App {
         else {
             return;
         };
-        let window_inner = ui::windows::content_inner(self.geometry.desktop);
+        let window_inner = ui::windows::content_inner(self.geometry.desktop, window, &self.state);
         let layout = ui::file_manager::layout(window_inner);
         if let Some(manager) = self.state.file_manager_mut(window.id) {
             ui::file_manager::sync_visible_rows(manager, layout.list_rows);

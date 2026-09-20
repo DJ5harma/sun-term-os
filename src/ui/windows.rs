@@ -7,32 +7,39 @@ use ratatui::{
 
 use crate::app::{AppState, ApplicationKind, Loadable, TerminalStatus, Window};
 
-use super::theme;
+use super::{hit_map::HitMap, theme};
 
-/// Content area inside the window chrome block (matches [render]).
-pub(crate) fn content_inner(area: Rect) -> Rect {
+fn window_block(title: String) -> Block<'static> {
     Block::default()
-        .title(" window ")
-        .borders(Borders::ALL)
-        .inner(area)
-}
-
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window) {
-    let block = Block::default()
-        .title(format!(
-            " {}  ·  {} ",
-            window.application.title(),
-            state.machine.name
-        ))
+        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme::AMBER))
-        .style(Style::default().bg(theme::SURFACE));
+        .style(Style::default().bg(theme::SURFACE))
+}
+
+/// Content area inside the window chrome block (must match [render]).
+pub(crate) fn content_inner(area: Rect, window: &Window, state: &AppState) -> Rect {
+    let title = format!(
+        " {}  ·  {} ",
+        window.application.title(),
+        state.machine.name
+    );
+    window_block(title).inner(area)
+}
+
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window, hits: &mut HitMap) {
+    let title = format!(
+        " {}  ·  {} ",
+        window.application.title(),
+        state.machine.name
+    );
+    let block = window_block(title);
     let inner = block.inner(area);
     frame.render_widget(block, area);
     match window.application {
         ApplicationKind::Terminal => terminal(frame, inner, state, window.id),
         ApplicationKind::FileManager => {
-            super::file_manager::render(frame, inner, state, window.id);
+            super::file_manager::render(frame, inner, state, window.id, hits);
         }
         ApplicationKind::SystemInfo => system(frame, inner, state),
         ApplicationKind::Processes => processes(frame, inner, state),

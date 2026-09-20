@@ -204,11 +204,11 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         }
         Action::SelectFileManagerPlace(window_id, index) => {
             if focused_file_manager_window(state) == Some(window_id)
-                && let Some(manager) = state.file_manager(window_id)
-                && let Some(place) = manager.places.get(index)
+                && let Some(manager) = state.file_manager_mut(window_id)
+                && index < manager.places.len()
             {
-                let path = place.path.clone();
-                return navigate_file_manager(state, window_id, path, true);
+                manager.focus = FileManagerFocus::Places;
+                manager.selected_place = index;
             }
         }
     }

@@ -4,7 +4,7 @@ use ratatui::layout::Position;
 use crate::{
     actions::Action,
     app::{AppState, ApplicationKind, SortColumn},
-    ui::geometry::UiGeometry,
+    ui::{geometry::UiGeometry, hit_map::HitMap},
 };
 
 use super::shell_shortcuts::{consumes_for_shell, resolve as resolve_shell};
@@ -235,6 +235,7 @@ pub fn action_for_mouse(
     mouse: MouseEvent,
     state: &AppState,
     geometry: &UiGeometry,
+    hit_map: &HitMap,
 ) -> Option<Action> {
     let position = Position::new(mouse.column, mouse.row);
     if state.launcher_open {
@@ -250,12 +251,7 @@ pub fn action_for_mouse(
         if !geometry.launcher.contains(position) {
             return Some(Action::CloseLauncher);
         }
-        for (application, area) in &geometry.launcher_targets {
-            if area.contains(position) {
-                return Some(Action::OpenApplication(*application));
-            }
-        }
-        return None;
+        return hit_map.hit(mouse.column, mouse.row);
     }
     let file_manager_focused = state
         .focused_window()
@@ -271,51 +267,7 @@ pub fn action_for_mouse(
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
         return None;
     }
-    if geometry.launcher_button.contains(position) {
-        return Some(Action::ToggleLauncher);
-    }
-    for (id, area) in &geometry.window_targets {
-        if area.contains(position)
-            && state
-                .current_workspace()
-                .windows
-                .iter()
-                .any(|window| window.id == *id)
-        {
-            return Some(Action::FocusWindow(*id));
-        }
-    }
-    for (window_id, targets) in &geometry.file_manager_hit_targets {
-        if targets.back.contains(position) {
-            return Some(Action::FileManagerGoBack);
-        }
-        if targets.up.contains(position) {
-            return Some(Action::FileManagerGoUp);
-        }
-        if targets.home.contains(position) {
-            return Some(Action::FileManagerGoHome);
-        }
-        if targets.sort_name.contains(position) {
-            return Some(Action::FileManagerSetSort(SortColumn::Name));
-        }
-        if targets.sort_size.contains(position) {
-            return Some(Action::FileManagerSetSort(SortColumn::Size));
-        }
-        if targets.sort_modified.contains(position) {
-            return Some(Action::FileManagerSetSort(SortColumn::Modified));
-        }
-        for (index, area) in &targets.place_rows {
-            if area.contains(position) {
-                return Some(Action::SelectFileManagerPlace(*window_id, *index));
-            }
-        }
-        for (index, area) in &targets.list_rows {
-            if area.contains(position) {
-                return Some(Action::SelectFileManagerRow(*window_id, *index));
-            }
-        }
-    }
-    None
+    hit_map.hit(mouse.column, mouse.row)
 }
 
 pub fn terminal_mouse(mouse: MouseEvent, geometry: &UiGeometry) -> Option<Vec<u8>> {
@@ -468,15 +420,17 @@ mod tests {
     fn launcher_clicks_and_terminal_mouse_events_use_shared_geometry() {
         let state = AppState::default();
         let geometry = crate::ui::geometry::calculate(Rect::new(0, 0, 120, 40), &state);
-        let launcher = geometry.launcher_button;
+        let mut hits = HitMap::default();
+        let toggle_area = Rect::new(0, 0, 18, 1);
+        hits.register(toggle_area, Action::ToggleLauncher);
         let mouse = MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
-            column: launcher.x + 1,
-            row: launcher.y + 1,
+            column: 1,
+            row: 0,
             modifiers: KeyModifiers::NONE,
         };
         assert_eq!(
-            action_for_mouse(mouse, &state, &geometry),
+            action_for_mouse(mouse, &state, &geometry, &hits),
             Some(Action::ToggleLauncher)
         );
 

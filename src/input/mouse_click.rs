@@ -7,8 +7,15 @@ use crate::{actions::Action, domain::WindowId};
 const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClickPane {
+    List,
+    Places,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ClickTarget {
     window_id: WindowId,
+    pane: ClickPane,
     row_index: usize,
     column: u16,
     row: u16,
@@ -26,19 +33,33 @@ impl DoubleClickState {
             return vec![primary];
         }
 
-        if let Action::SelectFileManagerRow(window_id, index) = primary {
+        let follow_up = match primary {
+            Action::SelectFileManagerRow(window_id, index) => Some((
+                window_id,
+                ClickPane::List,
+                index,
+                Action::SelectFileManagerRow(window_id, index),
+            )),
+            Action::SelectFileManagerPlace(window_id, index) => Some((
+                window_id,
+                ClickPane::Places,
+                index,
+                Action::SelectFileManagerPlace(window_id, index),
+            )),
+            _ => None,
+        };
+
+        if let Some((window_id, pane, index, select_action)) = follow_up {
             let target = ClickTarget {
                 window_id,
+                pane,
                 row_index: index,
                 column: mouse.column,
                 row: mouse.row,
             };
             if self.is_double_click(target) {
                 self.last = None;
-                return vec![
-                    Action::SelectFileManagerRow(window_id, index),
-                    Action::OpenSelectedEntry,
-                ];
+                return vec![select_action, Action::OpenSelectedEntry];
             }
             self.last = Some((target, Instant::now()));
             return vec![primary];

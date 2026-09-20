@@ -6,7 +6,11 @@ pub use mouse_click::DoubleClickState;
 
 use crossterm::event::{KeyEvent, MouseEvent};
 
-use crate::{actions::Action, app::AppState, ui::geometry::UiGeometry};
+use crate::{
+    actions::Action,
+    app::AppState,
+    ui::{geometry::UiGeometry, hit_map::HitMap},
+};
 
 pub fn action_for_key(
     key: KeyEvent,
@@ -29,9 +33,10 @@ pub fn actions_for_mouse(
     mouse: MouseEvent,
     state: &AppState,
     geometry: &UiGeometry,
+    hit_map: &HitMap,
     double_click: &mut mouse_click::DoubleClickState,
 ) -> Vec<Action> {
-    let Some(primary) = keybindings::action_for_mouse(mouse, state, geometry) else {
+    let Some(primary) = keybindings::action_for_mouse(mouse, state, geometry, hit_map) else {
         return Vec::new();
     };
     double_click.actions_after_primary(&mouse, primary)
