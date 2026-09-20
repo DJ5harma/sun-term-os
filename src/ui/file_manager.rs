@@ -126,14 +126,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window_id: u64) {
         return;
     };
 
-    let block = Block::default()
-        .title(" Files ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::AMBER))
-        .style(Style::default().bg(theme::SURFACE));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-    let layout = layout(inner);
+    let layout = layout(area);
 
     render_toolbar(frame, layout.toolbar, manager);
     render_places(frame, layout.places, manager);
@@ -322,7 +315,7 @@ fn render_status(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
                 .count();
             let files = listing.entries.len() - folders;
             format!(
-                "  {} items ({} folders, {} files) · Tab places · Enter open · ↑↓ navigate · PgUp/PgDn scroll",
+                "  {} items ({} folders, {} files) · dbl-click open · Tab places · Enter · PgUp/PgDn scroll",
                 listing.entries.len() + usize::from(listing.path.parent().is_some()),
                 folders,
                 files
@@ -362,14 +355,6 @@ fn format_modified(modified_secs: Option<u64>) -> String {
         hours,
         minutes
     )
-}
-
-/// Inner area after the file manager panel block (matches [render]).
-pub fn panel_inner(area: Rect) -> Rect {
-    Block::default()
-        .title(" Files ")
-        .borders(Borders::ALL)
-        .inner(area)
 }
 
 pub fn sync_visible_rows(manager: &mut FileManagerState, list_rows: Rect) {

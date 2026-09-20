@@ -61,8 +61,7 @@ fn file_manager_targets(desktop: Rect, state: &AppState) -> FileManagerGeometryT
         return Vec::new();
     };
     let window_inner = windows::content_inner(desktop);
-    let panel_inner = file_manager::panel_inner(window_inner);
-    let layout = file_manager::layout(panel_inner);
+    let layout = file_manager::layout(window_inner);
     let targets = file_manager::hit_targets(&layout, manager);
     vec![(window.id, targets)]
 }

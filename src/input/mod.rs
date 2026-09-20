@@ -1,5 +1,8 @@
 mod keybindings;
+mod mouse_click;
 mod shell_shortcuts;
+
+pub use mouse_click::DoubleClickState;
 
 use crossterm::event::{KeyEvent, MouseEvent};
 
@@ -22,10 +25,14 @@ pub fn terminal_mouse(mouse: MouseEvent, geometry: &UiGeometry) -> Option<Vec<u8
     keybindings::terminal_mouse(mouse, geometry)
 }
 
-pub fn action_for_mouse(
+pub fn actions_for_mouse(
     mouse: MouseEvent,
     state: &AppState,
     geometry: &UiGeometry,
-) -> Option<Action> {
-    keybindings::action_for_mouse(mouse, state, geometry)
+    double_click: &mut mouse_click::DoubleClickState,
+) -> Vec<Action> {
+    let Some(primary) = keybindings::action_for_mouse(mouse, state, geometry) else {
+        return Vec::new();
+    };
+    double_click.actions_after_primary(&mouse, primary)
 }

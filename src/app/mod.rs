@@ -28,6 +28,7 @@ use effects::Effect;
 pub struct App {
     pub state: AppState,
     geometry: ui::geometry::UiGeometry,
+    mouse_click: input::DoubleClickState,
     terminal_manager: TerminalManager,
     system_provider: Arc<dyn SystemInfoProvider>,
     process_provider: Arc<dyn ProcessProvider>,
@@ -43,6 +44,7 @@ impl App {
         Self {
             state: AppState::default(),
             geometry: ui::geometry::UiGeometry::default(),
+            mouse_click: input::DoubleClickState::default(),
             terminal_manager: TerminalManager::default(),
             system_provider,
             process_provider,
@@ -110,9 +112,18 @@ impl App {
                 }
             }
             Event::Mouse(mouse) => {
-                if let Some(action) = input::action_for_mouse(mouse, &self.state, &self.geometry) {
+                let actions = input::actions_for_mouse(
+                    mouse,
+                    &self.state,
+                    &self.geometry,
+                    &mut self.mouse_click,
+                );
+                let handled = !actions.is_empty();
+                for action in actions {
                     self.dispatch(action).await;
-                } else if !self.state.launcher_open
+                }
+                if !handled
+                    && !self.state.launcher_open
                     && let Some(window_id) = self
                         .state
                         .focused_window()
@@ -189,8 +200,7 @@ impl App {
             return;
         };
         let window_inner = ui::windows::content_inner(self.geometry.desktop);
-        let panel_inner = ui::file_manager::panel_inner(window_inner);
-        let layout = ui::file_manager::layout(panel_inner);
+        let layout = ui::file_manager::layout(window_inner);
         if let Some(manager) = self.state.file_manager_mut(window.id) {
             ui::file_manager::sync_visible_rows(manager, layout.list_rows);
             manager.clamp_selection();

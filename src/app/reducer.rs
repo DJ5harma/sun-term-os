@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use crate::{
     actions::Action,
     app::{
-        AppState, ApplicationKind, FileManagerFocus, Loadable, TerminalStatus, Window,
-        WindowState,
+        AppState, ApplicationKind, FileManagerFocus, Loadable, TerminalStatus, Window, WindowState,
         file_manager::{
             DisplayRowKind, apply_sorted_listing, display_row_count, display_row_kind,
             ensure_selection_visible,
