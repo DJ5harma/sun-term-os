@@ -1,5 +1,6 @@
 mod effects;
 pub mod file_manager;
+pub mod palette;
 pub mod process_manager;
 mod reducer;
 pub mod state;
@@ -17,6 +18,7 @@ use tokio::time::{self, MissedTickBehavior};
 
 use crate::{
     actions::Action,
+    config::Config,
     events::Event,
     input,
     machine::{FilesystemProvider, ProcessProvider, SystemInfoProvider},
@@ -28,6 +30,7 @@ use effects::Effect;
 
 pub struct App {
     pub state: AppState,
+    refresh_interval_secs: u64,
     geometry: ui::geometry::UiGeometry,
     mouse_click: input::DoubleClickState,
     interactions: ui::interaction::InteractionMap,
@@ -39,12 +42,15 @@ pub struct App {
 
 impl App {
     pub fn new(
+        config: Config,
         system_provider: Arc<dyn SystemInfoProvider>,
         process_provider: Arc<dyn ProcessProvider>,
         filesystem_provider: Arc<dyn FilesystemProvider>,
     ) -> Self {
+        let config = config.normalized();
         Self {
-            state: AppState::default(),
+            state: AppState::new(config.workspace_count),
+            refresh_interval_secs: config.refresh_interval_secs,
             geometry: ui::geometry::UiGeometry::default(),
             mouse_click: input::DoubleClickState::default(),
             interactions: ui::interaction::InteractionMap::default(),
@@ -56,7 +62,7 @@ impl App {
     }
 
     pub async fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut ticker = time::interval(Duration::from_secs(3));
+        let mut ticker = time::interval(Duration::from_secs(self.refresh_interval_secs));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut input_events = spawn_input_reader();
         self.dispatch(Action::Refresh).await;
@@ -69,6 +75,7 @@ impl App {
             );
             self.sync_file_manager_visible_rows();
             self.sync_process_manager_visible_rows();
+            self.sync_palette_selection();
             self.resize_focused_terminal();
             self.interactions.clear();
             terminal.draw(|frame| {
@@ -113,10 +120,36 @@ impl App {
                     .filter(|window| window.application == ApplicationKind::Processes)
                     .and_then(|window| self.state.process_manager(window.id))
                     .is_some_and(|manager| manager.filter_active);
+                let file_manager_dialog = {
+                    let manager = self
+                        .state
+                        .focused_window()
+                        .filter(|window| window.application == ApplicationKind::FileManager)
+                        .and_then(|window| self.state.file_manager(window.id))
+                        .or_else(|| {
+                            crate::app::file_manager::target_file_manager_window(&self.state)
+                                .and_then(|id| self.state.file_manager(id))
+                        });
+                    manager
+                        .map(|manager| match &manager.dialog {
+                            state::FileManagerDialog::None => input::FileManagerDialogMode::None,
+                            state::FileManagerDialog::DeleteConfirm { .. } => {
+                                input::FileManagerDialogMode::DeleteConfirm
+                            }
+                            state::FileManagerDialog::Rename { .. } => {
+                                input::FileManagerDialogMode::Rename
+                            }
+                            state::FileManagerDialog::Create { .. } => {
+                                input::FileManagerDialogMode::Create
+                            }
+                        })
+                        .unwrap_or(input::FileManagerDialogMode::None)
+                };
                 let context = input::KeyInputContext {
                     focus,
                     window_pick_mode: self.state.window_pick_mode,
                     process_filter_active,
+                    file_manager_dialog,
                 };
                 let dispatch = input::handle_key(key, &context);
                 if self.state.input_debug {
@@ -208,8 +241,121 @@ impl App {
                     }
                     self.refresh_capabilities().await;
                 }
+                Effect::DeletePath(window_id, path) => {
+                    let directory = self
+                        .state
+                        .file_manager(window_id)
+                        .map(|manager| manager.current_path.clone());
+                    let result = self.filesystem_provider.remove_path(&path).await;
+                    if let Some(manager) = self.state.file_manager_mut(window_id) {
+                        manager.dialog = state::FileManagerDialog::None;
+                    }
+                    match result {
+                        Ok(crate::machine::RemoveOutcome::MovedToTrash) => {
+                            self.state.status = format!("Moved to trash: {}", path.display());
+                            if let Some(directory) = directory {
+                                self.schedule_read_directory(window_id, directory).await;
+                            }
+                        }
+                        Ok(crate::machine::RemoveOutcome::DeletedPermanently) => {
+                            self.state.status = format!("Deleted permanently: {}", path.display());
+                            if let Some(directory) = directory {
+                                self.schedule_read_directory(window_id, directory).await;
+                            }
+                        }
+                        Err(error) => {
+                            self.state.status = format!("Remove failed: {error}");
+                        }
+                    }
+                }
+                Effect::CreateEntry(window_id, path, kind) => {
+                    let directory = self
+                        .state
+                        .file_manager(window_id)
+                        .map(|manager| manager.current_path.clone());
+                    let result = match kind {
+                        crate::app::file_manager::CreateKind::File => {
+                            self.filesystem_provider.create_file(&path).await
+                        }
+                        crate::app::file_manager::CreateKind::Directory => {
+                            self.filesystem_provider.create_directory(&path).await
+                        }
+                    };
+                    if let Some(manager) = self.state.file_manager_mut(window_id) {
+                        manager.dialog = state::FileManagerDialog::None;
+                    }
+                    match result {
+                        Ok(()) => {
+                            self.state.status = format!("Created {}", path.display());
+                            if let Some(directory) = directory {
+                                self.schedule_read_directory(window_id, directory).await;
+                            }
+                        }
+                        Err(error) => self.state.status = format!("Create failed: {error}"),
+                    }
+                }
+                Effect::RenamePath(window_id, from, to) => {
+                    let directory = self
+                        .state
+                        .file_manager(window_id)
+                        .map(|manager| manager.current_path.clone());
+                    let result = self.filesystem_provider.rename_path(&from, &to).await;
+                    if let Some(manager) = self.state.file_manager_mut(window_id) {
+                        manager.dialog = state::FileManagerDialog::None;
+                    }
+                    match result {
+                        Ok(()) => {
+                            self.state.status = format!(
+                                "Renamed {} → {}",
+                                from.file_name()
+                                    .map(|name| name.to_string_lossy())
+                                    .unwrap_or_default(),
+                                to.file_name()
+                                    .map(|name| name.to_string_lossy())
+                                    .unwrap_or_default()
+                            );
+                            if let Some(directory) = directory {
+                                self.schedule_read_directory(window_id, directory).await;
+                            }
+                        }
+                        Err(error) => {
+                            self.state.status = format!("Rename failed: {error}");
+                        }
+                    }
+                }
             }
         }
+    }
+
+    async fn schedule_read_directory(&mut self, window_id: u64, path: std::path::PathBuf) {
+        if let Some(manager) = self.state.file_manager_mut(window_id) {
+            manager.listing = Loadable::Loading;
+        }
+        let show_hidden = self
+            .state
+            .file_manager(window_id)
+            .map(|manager| manager.show_hidden)
+            .unwrap_or(false);
+        let result = self
+            .filesystem_provider
+            .list_directory(&path, show_hidden)
+            .await
+            .map_err(|error| error.to_string());
+        self.state
+            .apply_event(Event::DirectoryLoaded(window_id, result));
+    }
+
+    fn sync_palette_selection(&mut self) {
+        if !self.state.launcher_open {
+            return;
+        }
+        let count = palette::filtered_entries(&self.state).len();
+        palette::clamp_palette_selection(
+            &mut self.state.launcher_selection,
+            &mut self.state.launcher_scroll_offset,
+            palette::PALETTE_RESULT_ROWS,
+            count,
+        );
     }
 
     fn sync_process_manager_visible_rows(&mut self) {

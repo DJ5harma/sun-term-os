@@ -12,6 +12,12 @@ use crate::machine::{DirectoryListing, FileEntry, FileEntryKind};
 use super::Loadable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreateKind {
+    File,
+    Directory,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileManagerFocus {
     Places,
     List,
@@ -122,6 +128,45 @@ pub fn display_row_kind(
     Some(DisplayRowKind::Entry)
 }
 
+pub fn target_file_manager_window(state: &super::state::AppState) -> Option<u64> {
+    if let Some(window) = state.focused_window()
+        && window.application == crate::domain::ApplicationKind::FileManager
+    {
+        return Some(window.id);
+    }
+    state
+        .current_workspace()
+        .windows
+        .iter()
+        .find(|window| window.application == crate::domain::ApplicationKind::FileManager)
+        .map(|window| window.id)
+}
+
+pub fn selected_entry_path(manager: &super::state::FileManagerState) -> Option<PathBuf> {
+    if manager.focus != FileManagerFocus::List {
+        return None;
+    }
+    let Loadable::Ready(listing) = &manager.listing else {
+        return None;
+    };
+    let entry = display_entry(&manager.current_path, listing, manager.selected_index)?;
+    Some(listing.path.join(&entry.name))
+}
+
+pub fn validate_rename_input(input: &str) -> Result<(), &'static str> {
+    let name = input.trim();
+    if name.is_empty() {
+        return Err("name cannot be empty");
+    }
+    if name == "." || name == ".." {
+        return Err("invalid name");
+    }
+    if name.contains('/') || name.contains('\\') {
+        return Err("name cannot contain path separators");
+    }
+    Ok(())
+}
+
 pub fn display_entry<'a>(
     path: &Path,
     listing: &'a DirectoryListing,
@@ -208,6 +253,12 @@ mod tests {
             display_entry(&listing.path, &listing, 1).map(|e| e.name.as_str()),
             Some("a")
         );
+    }
+
+    #[test]
+    fn validate_rename_rejects_separators() {
+        assert!(validate_rename_input("good-name").is_ok());
+        assert!(validate_rename_input("bad/name").is_err());
     }
 
     #[test]

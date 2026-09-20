@@ -16,7 +16,9 @@ use crate::{
     actions::Action,
     app::{
         file_manager::{DisplayRowKind, SortColumn, display_row_count, display_row_kind},
-        state::{AppState, FileManagerFocus, FileManagerState, FileSort, Loadable},
+        state::{
+            AppState, FileManagerDialog, FileManagerFocus, FileManagerState, FileSort, Loadable,
+        },
     },
     machine::FileEntryKind,
 };
@@ -359,23 +361,28 @@ fn breadcrumb_text(path: &std::path::Path, max_len: usize) -> String {
 }
 
 fn render_status(frame: &mut Frame, area: Rect, manager: &FileManagerState) {
-    let text = match &manager.listing {
-        Loadable::Ready(listing) => {
-            let folders = listing
-                .entries
-                .iter()
-                .filter(|e| e.kind == FileEntryKind::Directory)
-                .count();
-            let files = listing.entries.len() - folders;
-            format!(
-                "  {} items ({} folders, {} files) · dbl-click open · Tab places · Enter · PgUp/PgDn scroll",
-                listing.entries.len() + usize::from(listing.path.parent().is_some()),
-                folders,
-                files
-            )
+    let text = match &manager.dialog {
+        FileManagerDialog::DeleteConfirm { label, .. } => {
+            format!("  Trash/delete {label}?  y confirm · n/Esc cancel")
         }
-        Loadable::Loading => "  Reading…".to_owned(),
-        Loadable::Failed(_) => "  Could not read this folder".to_owned(),
+        FileManagerDialog::Rename { input, .. } => {
+            format!("  Rename to: {input}▌  Enter save · Esc cancel")
+        }
+        FileManagerDialog::Create { kind, input } => {
+            let label = match kind {
+                crate::app::file_manager::CreateKind::File => "file",
+                crate::app::file_manager::CreateKind::Directory => "folder",
+            };
+            format!("  New {label}: {input}▌  Enter create · Esc cancel")
+        }
+        FileManagerDialog::None => match &manager.listing {
+            Loadable::Ready(listing) => format!(
+                "  {} items · a file · A folder · d trash · Shift+R rename · o terminal",
+                listing.entries.len() + usize::from(listing.path.parent().is_some()),
+            ),
+            Loadable::Loading => "  Reading…".to_owned(),
+            Loadable::Failed(_) => "  Could not read this folder".to_owned(),
+        },
     };
     frame.render_widget(Paragraph::new(text).style(theme::muted()), area);
 }

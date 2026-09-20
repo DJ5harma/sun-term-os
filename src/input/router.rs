@@ -6,7 +6,10 @@ use crate::{actions::Action, domain::ApplicationKind};
 
 use super::{
     bindings::{match_global, match_modal, match_window_pick},
-    keybindings::{desktop_key, file_manager_key, process_filter_key, process_manager_key},
+    keybindings::{
+        desktop_key, file_manager_delete_confirm_key, file_manager_dialog_input_key,
+        file_manager_key, process_filter_key, process_manager_key,
+    },
     normalize::normalize_key_event,
     terminal_encode::encode_key,
 };
@@ -19,10 +22,19 @@ pub enum FocusContext {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileManagerDialogMode {
+    None,
+    DeleteConfirm,
+    Rename,
+    Create,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyInputContext {
     pub focus: FocusContext,
     pub window_pick_mode: bool,
     pub process_filter_active: bool,
+    pub file_manager_dialog: FileManagerDialogMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,10 +68,19 @@ pub fn dispatch_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
             Some(action) => KeyDispatch::Action(action),
             None => KeyDispatch::Consumed,
         },
-        FocusContext::Window(ApplicationKind::FileManager) => match file_manager_key(normalized) {
-            Some(action) => KeyDispatch::Action(action),
-            None => KeyDispatch::Consumed,
-        },
+        FocusContext::Window(ApplicationKind::FileManager) => {
+            let dispatch = match context.file_manager_dialog {
+                FileManagerDialogMode::DeleteConfirm => file_manager_delete_confirm_key(normalized),
+                FileManagerDialogMode::Rename | FileManagerDialogMode::Create => {
+                    file_manager_dialog_input_key(normalized)
+                }
+                FileManagerDialogMode::None => file_manager_key(normalized),
+            };
+            match dispatch {
+                Some(action) => KeyDispatch::Action(action),
+                None => KeyDispatch::Consumed,
+            }
+        }
         FocusContext::Window(ApplicationKind::Terminal) => {
             if let Some(bytes) = encode_key(normalized) {
                 KeyDispatch::Terminal(bytes)
@@ -99,6 +120,7 @@ mod tests {
             focus: FocusContext::Window(ApplicationKind::FileManager),
             window_pick_mode: false,
             process_filter_active: false,
+            file_manager_dialog: FileManagerDialogMode::None,
         }
     }
 
@@ -107,6 +129,7 @@ mod tests {
             focus: FocusContext::Window(ApplicationKind::Terminal),
             window_pick_mode: false,
             process_filter_active: false,
+            file_manager_dialog: FileManagerDialogMode::None,
         }
     }
 
@@ -115,6 +138,7 @@ mod tests {
             focus: FocusContext::Window(ApplicationKind::Terminal),
             window_pick_mode: true,
             process_filter_active: false,
+            file_manager_dialog: FileManagerDialogMode::None,
         }
     }
 
@@ -148,6 +172,30 @@ mod tests {
         assert_eq!(
             dispatch_key(key, &fm_ctx()),
             KeyDispatch::Action(Action::FileManagerTogglePane)
+        );
+    }
+
+    #[test]
+    fn shift_r_begins_rename_in_file_manager() {
+        let key = KeyEvent::new(KeyCode::Char('R'), KeyModifiers::SHIFT);
+        assert_eq!(
+            dispatch_key(key, &fm_ctx()),
+            KeyDispatch::Action(Action::FileManagerBeginRename)
+        );
+    }
+
+    #[test]
+    fn enter_in_rename_dialog_commits() {
+        let ctx = KeyInputContext {
+            focus: FocusContext::Window(ApplicationKind::FileManager),
+            window_pick_mode: false,
+            process_filter_active: false,
+            file_manager_dialog: FileManagerDialogMode::Rename,
+        };
+        let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(
+            dispatch_key(key, &ctx),
+            KeyDispatch::Action(Action::FileManagerDialogCommit)
         );
     }
 }
