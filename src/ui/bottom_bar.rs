@@ -10,7 +10,7 @@ use crate::{
     app::{AppState, Loadable},
     apps,
     domain::WindowState,
-    input::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT},
+    input::{LAUNCHER_SHORTCUT_HINT, SHOW_DESKTOP_HINT, WINDOW_FOCUS_HINT},
 };
 
 use super::{
@@ -19,6 +19,23 @@ use super::{
 };
 
 pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
+    let desktop_active = state.current_workspace().show_desktop;
+    let desktop_style = if desktop_active {
+        theme::active()
+    } else {
+        Style::default().fg(theme::text())
+    };
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(" ⌂ ", Style::default().fg(theme::bg()).bg(theme::accent())),
+            Span::styled("Desk", desktop_style),
+            Span::styled(
+                format!(" {SHOW_DESKTOP_HINT}"),
+                Style::default().fg(theme::muted_color()),
+            ),
+        ])),
+        layout.show_desktop,
+    );
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(" ⊞ ", Style::default().fg(theme::bg()).bg(theme::accent())),

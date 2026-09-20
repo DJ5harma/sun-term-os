@@ -154,6 +154,8 @@ impl AppState {
                     id,
                     windows: Vec::new(),
                     focused_window: None,
+                    show_desktop: false,
+                    show_desktop_restore_focus: None,
                 })
                 .collect(),
             active_workspace: 0,

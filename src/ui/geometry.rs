@@ -16,6 +16,7 @@ pub struct TopBarGeometry {
 #[derive(Debug, Clone, Copy)]
 pub struct BottomBarGeometry {
     pub area: Rect,
+    pub show_desktop: Rect,
     pub launcher: Rect,
     pub windows: Rect,
     pub status: Rect,
@@ -96,14 +97,19 @@ pub fn bottom_bar_layout(area: Rect) -> BottomBarGeometry {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(36),
+            Constraint::Length(48),
             Constraint::Min(12),
             Constraint::Length(28),
         ])
         .split(area);
+    let left = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(20), Constraint::Min(10)])
+        .split(chunks[0]);
     BottomBarGeometry {
         area,
-        launcher: chunks[0],
+        show_desktop: left[0],
+        launcher: left[1],
         windows: chunks[1],
         status: chunks[2],
     }
@@ -150,6 +156,9 @@ pub fn shell_action_at(
     let position = Position::new(column, row);
 
     if geometry.bottom_bar.area.contains(position) {
+        if geometry.bottom_bar.show_desktop.contains(position) {
+            return Some(Action::Shell(ShellAction::ToggleShowDesktop));
+        }
         if geometry.bottom_bar.launcher.contains(position) {
             return Some(Action::Palette(PaletteAction::ToggleLauncher));
         }
@@ -221,6 +230,16 @@ mod tests {
         });
         workspace.focused_window = Some(1);
         let geometry = calculate(Rect::new(0, 0, 100, 24), &state);
+        let desktop_x = geometry.bottom_bar.show_desktop.x + 2;
+        assert_eq!(
+            shell_action_at(
+                desktop_x,
+                geometry.bottom_bar.show_desktop.y,
+                &geometry,
+                &state
+            ),
+            Some(Action::Shell(ShellAction::ToggleShowDesktop))
+        );
         let launcher_x = geometry.bottom_bar.launcher.x + 2;
         assert_eq!(
             shell_action_at(

@@ -73,6 +73,8 @@ Embedded terminals receive all other keys. Host terminals often steal `Ctrl+digi
 
 An empty workspace shows a **home screen** (app tiles): click a tile, press **Enter**, or use letter shortcuts (`t`, `f`, …). Pin order is configurable under `[home] pinned` in `config.toml`.
 
+**Show desktop** (`Alt+D` or click **⌂ Desk** in the bottom bar) hides all windows on the workspace and shows the home grid without closing apps; use the same shortcut or button to restore the previous window.
+
 ## Architecture
 
 Input is normalized and routed by focus. Actions update `AppState` through a reducer; side effects (PTY, filesystem reads, signals) run in the app loop. Machine capabilities live behind async provider traits so remote machines can share the same UI later.

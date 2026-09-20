@@ -18,6 +18,7 @@ pub(super) fn reduce(state: &mut AppState, action: ShellAction) -> Vec<Effect> {
         }
         ShellAction::OpenApplication(application) => {
             state.launcher_open = false;
+            clear_show_desktop(state);
             let window_id = open_application(state, application);
             return open_application_effects(state, application, window_id);
         }
@@ -66,8 +67,37 @@ pub(super) fn reduce(state: &mut AppState, action: ShellAction) -> Vec<Effect> {
                 String::new()
             };
         }
+        ShellAction::ToggleShowDesktop => toggle_show_desktop(state),
     }
     Vec::new()
+}
+
+pub(crate) fn clear_show_desktop(state: &mut AppState) {
+    let workspace = state.current_workspace_mut();
+    if workspace.show_desktop {
+        workspace.show_desktop = false;
+        workspace.show_desktop_restore_focus = None;
+    }
+}
+
+fn toggle_show_desktop(state: &mut AppState) {
+    let workspace = state.current_workspace_mut();
+    if workspace.show_desktop {
+        workspace.show_desktop = false;
+        let restore = workspace.show_desktop_restore_focus;
+        workspace.show_desktop_restore_focus = None;
+        if let Some(id) = restore {
+            focus_window(state, id);
+        }
+        state.status = "Restored windows".to_owned();
+        return;
+    }
+    workspace.show_desktop_restore_focus = workspace.focused_window;
+    workspace.show_desktop = true;
+    state.status = format!(
+        "Show desktop · {} or ⌂ to restore",
+        crate::input::SHOW_DESKTOP_HINT
+    );
 }
 
 fn close_focused_window(state: &mut AppState) -> Option<(u64, ApplicationKind)> {
@@ -90,6 +120,7 @@ fn close_focused_window(state: &mut AppState) -> Option<(u64, ApplicationKind)> 
 }
 
 pub(super) fn focus_window(state: &mut AppState, id: u64) {
+    clear_show_desktop(state);
     let workspace = state.current_workspace_mut();
     if let Some(window) = workspace.windows.iter_mut().find(|window| window.id == id) {
         if window.state == WindowState::Minimized {
@@ -132,6 +163,7 @@ fn focus_window_by_offset(state: &mut AppState, offset: isize) {
 }
 
 pub(crate) fn open_application(state: &mut AppState, application: ApplicationKind) -> u64 {
+    clear_show_desktop(state);
     let id = state.next_window_id;
     state.next_window_id += 1;
     let machine_id = state.active_machine_id.clone();

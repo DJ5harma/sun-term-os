@@ -16,6 +16,8 @@ pub const WINDOW_FOCUS_HINT: &str = "Ctrl+G, then 1–9";
 
 pub const WORKSPACE_HINT: &str = "F1–F9";
 
+pub const SHOW_DESKTOP_HINT: &str = "Alt+D";
+
 pub fn match_global(key: KeyEvent) -> Option<Action> {
     if !key.is_press() && !key.is_repeat() {
         return None;
@@ -25,6 +27,9 @@ pub fn match_global(key: KeyEvent) -> Option<Action> {
     }
     if is_begin_window_pick(key) {
         return Some(Action::Shell(ShellAction::BeginWindowPick));
+    }
+    if let Some(action) = show_desktop_toggle(key) {
+        return Some(action);
     }
     if let Some(action) = window_chrome(key) {
         return Some(action);
@@ -99,6 +104,13 @@ fn is_begin_window_pick(key: KeyEvent) -> bool {
     key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('g' | 'G'))
 }
 
+fn show_desktop_toggle(key: KeyEvent) -> Option<Action> {
+    let alt_d = matches!(key.code, KeyCode::Char('d' | 'D'))
+        && key.modifiers.intersects(KeyModifiers::ALT)
+        && !key.modifiers.intersects(KeyModifiers::CONTROL);
+    alt_d.then_some(Action::Shell(ShellAction::ToggleShowDesktop))
+}
+
 fn window_chrome(key: KeyEvent) -> Option<Action> {
     if !key.modifiers.intersects(KeyModifiers::CONTROL)
         || key.modifiers.intersects(KeyModifiers::SHIFT)
@@ -124,6 +136,14 @@ fn workspace_from_function_key(code: KeyCode) -> Option<usize> {
 mod tests {
     use super::*;
     use crossterm::event::KeyEvent;
+
+    #[test]
+    fn alt_d_toggles_show_desktop() {
+        assert_eq!(
+            match_global(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::ALT)),
+            Some(Action::Shell(ShellAction::ToggleShowDesktop))
+        );
+    }
 
     #[test]
     fn ctrl_g_begins_window_pick() {
