@@ -1,6 +1,8 @@
 mod actions;
 mod app;
+mod domain;
 mod events;
+mod input;
 mod machine;
 mod ui;
 

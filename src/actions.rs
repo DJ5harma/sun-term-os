@@ -1,13 +1,20 @@
+use crate::domain::{ApplicationKind, WindowId};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Quit,
     Refresh,
-    ToggleCommandPalette,
-    CloseCommandPalette,
-    MovePaletteUp,
-    MovePaletteDown,
-    ExecutePaletteSelection,
-    FocusNext,
-    FocusPrevious,
+    ToggleLauncher,
+    CloseLauncher,
+    MoveLauncherUp,
+    MoveLauncherDown,
+    ExecuteLauncherSelection,
+    OpenApplication(ApplicationKind),
+    CloseWindow,
+    FocusNextWindow,
+    FocusPreviousWindow,
+    FocusWindow(WindowId),
+    MinimizeWindow,
+    ToggleMaximizeWindow,
     SwitchWorkspace(usize),
 }
