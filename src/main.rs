@@ -4,6 +4,7 @@ mod domain;
 mod events;
 mod input;
 mod machine;
+mod terminal;
 mod ui;
 
 use std::io::{self, stdout};

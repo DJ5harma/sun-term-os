@@ -29,11 +29,21 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::ExecuteLauncherSelection => {
             state.launcher_open = false;
             if let Some(application) = ApplicationKind::ALL.get(state.launcher_selection) {
-                open_application(state, *application);
+                let window_id = open_application(state, *application);
+                return terminal_effect(*application, window_id);
             }
         }
-        Action::OpenApplication(application) => open_application(state, application),
-        Action::CloseWindow => close_focused_window(state),
+        Action::OpenApplication(application) => {
+            let window_id = open_application(state, application);
+            return terminal_effect(application, window_id);
+        }
+        Action::CloseWindow => {
+            if let Some((window_id, application)) = close_focused_window(state)
+                && application == ApplicationKind::Terminal
+            {
+                return vec![Effect::StopTerminal(window_id)];
+            }
+        }
         Action::FocusNextWindow => focus_window_by_offset(state, 1),
         Action::FocusPreviousWindow => focus_window_by_offset(state, -1),
         Action::FocusWindow(id) => focus_window(state, id),
@@ -60,7 +70,15 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     Vec::new()
 }
 
-fn open_application(state: &mut AppState, application: ApplicationKind) {
+fn terminal_effect(application: ApplicationKind, window_id: u64) -> Vec<Effect> {
+    if application == ApplicationKind::Terminal {
+        vec![Effect::StartTerminal(window_id)]
+    } else {
+        Vec::new()
+    }
+}
+
+fn open_application(state: &mut AppState, application: ApplicationKind) -> u64 {
     let id = state.next_window_id;
     state.next_window_id += 1;
     state.current_workspace_mut().windows.push(Window {
@@ -70,13 +88,17 @@ fn open_application(state: &mut AppState, application: ApplicationKind) {
     });
     state.current_workspace_mut().focused_window = Some(id);
     state.status = format!("Opened {}", application.title());
+    id
 }
 
-fn close_focused_window(state: &mut AppState) {
-    let Some(focused) = state.current_workspace().focused_window else {
-        return;
-    };
+fn close_focused_window(state: &mut AppState) -> Option<(u64, ApplicationKind)> {
+    let focused = state.current_workspace().focused_window?;
     let workspace = state.current_workspace_mut();
+    let application = workspace
+        .windows
+        .iter()
+        .find(|window| window.id == focused)?
+        .application;
     workspace.windows.retain(|window| window.id != focused);
     workspace.focused_window = workspace
         .windows
@@ -85,6 +107,7 @@ fn close_focused_window(state: &mut AppState) {
         .find(|window| window.state != WindowState::Minimized)
         .map(|window| window.id);
     state.status = "Window closed".to_owned();
+    Some((focused, application))
 }
 
 fn focus_window(state: &mut AppState, id: u64) {

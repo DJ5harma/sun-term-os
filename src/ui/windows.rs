@@ -2,7 +2,6 @@ use ratatui::{
     Frame,
     layout::{Constraint, Rect},
     style::Style,
-    text::Line,
     widgets::{Block, Borders, Paragraph, Row, Table},
 };
 
@@ -23,24 +22,25 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window) 
     let inner = block.inner(area);
     frame.render_widget(block, area);
     match window.application {
-        ApplicationKind::Terminal => terminal(frame, inner),
+        ApplicationKind::Terminal => terminal(frame, inner, state, window.id),
         ApplicationKind::SystemInfo => system(frame, inner, state),
         ApplicationKind::Processes => processes(frame, inner, state),
     }
 }
 
-fn terminal(frame: &mut Frame, area: Rect) {
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from("Terminal window"),
-            Line::from(""),
-            Line::from("Interactive shell support is the next capability layer."),
-            Line::from(""),
-            Line::from(" >_  Ctrl+W closes this window"),
-        ])
-        .style(Style::default().fg(theme::TEXT)),
-        area,
-    );
+fn terminal(frame: &mut Frame, area: Rect, state: &AppState, window_id: u64) {
+    let content = state.terminal_content(window_id);
+    if content.is_empty() {
+        frame.render_widget(
+            Paragraph::new("Starting shell…").style(Style::default().fg(theme::MUTED)),
+            area,
+        );
+    } else {
+        frame.render_widget(
+            Paragraph::new(content).style(Style::default().fg(theme::TEXT)),
+            area,
+        );
+    }
 }
 
 fn system(frame: &mut Frame, area: Rect, state: &AppState) {

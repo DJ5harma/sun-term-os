@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     domain::{Window, WindowId, WindowState, Workspace},
     events::Event,
@@ -19,6 +21,7 @@ pub struct AppState {
     pub launcher_open: bool,
     pub launcher_selection: usize,
     pub next_window_id: WindowId,
+    pub terminal_contents: HashMap<WindowId, String>,
     pub system: Loadable<SystemSnapshot>,
     pub processes: Loadable<Vec<ProcessInfo>>,
     pub status: String,
@@ -44,6 +47,7 @@ impl Default for AppState {
             launcher_open: false,
             launcher_selection: 0,
             next_window_id: 1,
+            terminal_contents: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
             status: "Welcome to TDE · press p to open the launcher".to_owned(),
@@ -101,5 +105,20 @@ impl AppState {
             .filter(|window| window.state != WindowState::Minimized)
             .map(|window| window.id)
             .collect()
+    }
+
+    pub fn terminal_content(&self, window_id: WindowId) -> &str {
+        self.terminal_contents
+            .get(&window_id)
+            .map(String::as_str)
+            .unwrap_or("")
+    }
+
+    pub(crate) fn set_terminal_content(&mut self, window_id: WindowId, content: String) {
+        self.terminal_contents.insert(window_id, content);
+    }
+
+    pub(crate) fn remove_terminal_content(&mut self, window_id: WindowId) {
+        self.terminal_contents.remove(&window_id);
     }
 }
