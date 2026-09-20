@@ -10,11 +10,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::actions::Action;
 
 /// Shown in the shell chrome; keep in sync with [match_global].
-pub const LAUNCHER_SHORTCUT_HINT: &str = "Alt+P";
+pub const LAUNCHER_SHORTCUT_HINT: &str = "Alt+P command palette";
 
 pub const WINDOW_FOCUS_HINT: &str = "Ctrl+G, then 1–9";
 
-pub const WORKSPACE_HINT: &str = "F1–F3";
+pub const WORKSPACE_HINT: &str = "F1–F9";
 
 pub fn match_global(key: KeyEvent) -> Option<Action> {
     if !key.is_press() && !key.is_repeat() {
@@ -80,6 +80,10 @@ pub fn match_modal(key: KeyEvent) -> Option<Action> {
         KeyCode::Up => Some(Action::MoveLauncherUp),
         KeyCode::Down => Some(Action::MoveLauncherDown),
         KeyCode::Enter => Some(Action::ExecuteLauncherSelection),
+        KeyCode::Backspace => Some(Action::PaletteQueryBackspace),
+        KeyCode::Char(character) if key.modifiers == KeyModifiers::NONE => {
+            Some(Action::PaletteQueryPush(character))
+        }
         _ => None,
     }
 }
@@ -110,9 +114,7 @@ fn window_chrome(key: KeyEvent) -> Option<Action> {
 
 fn workspace_from_function_key(code: KeyCode) -> Option<usize> {
     match code {
-        KeyCode::F(1) => Some(0),
-        KeyCode::F(2) => Some(1),
-        KeyCode::F(3) => Some(2),
+        KeyCode::F(index) if (1..=9).contains(&index) => Some(index as usize - 1),
         _ => None,
     }
 }

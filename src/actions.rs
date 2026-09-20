@@ -9,6 +9,10 @@ pub enum Action {
     MoveLauncherUp,
     MoveLauncherDown,
     ExecuteLauncherSelection,
+    PaletteQueryPush(char),
+    PaletteQueryBackspace,
+    /// Run `!…` query from the command palette in a new terminal.
+    RunPaletteShell,
     OpenApplication(ApplicationKind),
     CloseWindow,
     /// Focus the Nth window on the current workspace (1–9, left-to-right in the bar).
@@ -41,5 +45,13 @@ pub enum Action {
     ProcessFilterEnd,
     ProcessKillSelected,
     FileManagerOpenInTerminal,
+    FileManagerRequestDelete,
+    FileManagerConfirmDelete,
+    FileManagerCancelDialog,
+    FileManagerBeginRename,
+    FileManagerBeginCreate(crate::app::file_manager::CreateKind),
+    FileManagerDialogPush(char),
+    FileManagerDialogBackspace,
+    FileManagerDialogCommit,
     SelectProcessRow(WindowId, usize),
 }

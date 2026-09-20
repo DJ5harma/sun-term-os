@@ -5,10 +5,16 @@ use crate::{
     app::{
         AppState, ApplicationKind, FileManagerFocus, Loadable, TerminalStatus, Window, WindowState,
         file_manager::{
-            DisplayRowKind, apply_sorted_listing, display_row_count, display_row_kind,
-            ensure_selection_visible, shell_single_quoted,
+            CreateKind, DisplayRowKind, apply_sorted_listing, display_row_count, display_row_kind,
+            ensure_selection_visible, selected_entry_path, shell_single_quoted,
+            validate_rename_input,
+        },
+        palette::{
+            PALETTE_RESULT_ROWS, clamp_palette_selection, filtered_entries,
+            shell_command_from_query,
         },
         process_manager::{matching_indices, selected_process},
+        state::FileManagerDialog,
     },
     machine::{FileEntryKind, local::default_start_path},
 };
@@ -27,22 +33,78 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::ToggleLauncher => {
             state.launcher_open = !state.launcher_open;
             state.launcher_selection = 0;
-        }
-        Action::CloseLauncher => state.launcher_open = false,
-        Action::MoveLauncherUp => {
-            state.launcher_selection = state.launcher_selection.saturating_sub(1)
-        }
-        Action::MoveLauncherDown => {
-            state.launcher_selection =
-                (state.launcher_selection + 1).min(ApplicationKind::ALL.len() - 1)
-        }
-        Action::ExecuteLauncherSelection => {
-            state.launcher_open = false;
-            if let Some(application) = ApplicationKind::ALL.get(state.launcher_selection) {
-                let window_id = open_application(state, *application);
-                return open_application_effects(state, *application, window_id);
+            state.launcher_scroll_offset = 0;
+            if state.launcher_open {
+                state.launcher_query.clear();
             }
         }
+        Action::CloseLauncher => {
+            state.launcher_open = false;
+            state.launcher_query.clear();
+            state.launcher_selection = 0;
+            state.launcher_scroll_offset = 0;
+        }
+        Action::PaletteQueryPush(character) => {
+            if state.launcher_open {
+                state.launcher_query.push(character);
+                state.launcher_selection = 0;
+                state.launcher_scroll_offset = 0;
+            }
+        }
+        Action::PaletteQueryBackspace => {
+            if state.launcher_open {
+                state.launcher_query.pop();
+                state.launcher_selection = 0;
+                state.launcher_scroll_offset = 0;
+            }
+        }
+        Action::MoveLauncherUp => {
+            if state.launcher_open {
+                let count = filtered_entries(state).len();
+                if count > 0 && state.launcher_selection > 0 {
+                    state.launcher_selection -= 1;
+                }
+                clamp_palette_selection(
+                    &mut state.launcher_selection,
+                    &mut state.launcher_scroll_offset,
+                    PALETTE_RESULT_ROWS,
+                    count,
+                );
+            }
+        }
+        Action::MoveLauncherDown => {
+            if state.launcher_open {
+                let count = filtered_entries(state).len();
+                if count > 0 {
+                    state.launcher_selection = (state.launcher_selection + 1).min(count - 1);
+                }
+                clamp_palette_selection(
+                    &mut state.launcher_selection,
+                    &mut state.launcher_scroll_offset,
+                    PALETTE_RESULT_ROWS,
+                    count,
+                );
+            }
+        }
+        Action::ExecuteLauncherSelection => {
+            if !state.launcher_open {
+                return Vec::new();
+            }
+            let action = filtered_entries(state)
+                .get(state.launcher_selection)
+                .map(|entry| entry.action);
+            if action == Some(Action::RunPaletteShell) {
+                return run_palette_shell(state);
+            }
+            state.launcher_open = false;
+            state.launcher_query.clear();
+            state.launcher_selection = 0;
+            state.launcher_scroll_offset = 0;
+            if let Some(action) = action {
+                return reduce(state, action);
+            }
+        }
+        Action::RunPaletteShell => return run_palette_shell(state),
         Action::OpenApplication(application) => {
             state.launcher_open = false;
             let window_id = open_application(state, application);
@@ -188,7 +250,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             }
         }
         Action::ToggleFileManagerHidden => {
-            if let Some(window_id) = focused_file_manager_window(state)
+            if let Some(window_id) = resolve_file_manager_window(state)
                 && let Some(manager) = state.file_manager_mut(window_id)
             {
                 manager.show_hidden = !manager.show_hidden;
@@ -321,8 +383,162 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             }
         }
         Action::FileManagerOpenInTerminal => return open_selection_in_terminal(state),
+        Action::FileManagerRequestDelete => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager(window_id)
+            {
+                if let Some(path) = selected_entry_path(manager) {
+                    let label = path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.display().to_string());
+                    state.status =
+                        format!("Move to trash / delete {label}?  y confirm · n/Esc cancel");
+                    if let Some(manager) = state.file_manager_mut(window_id) {
+                        manager.dialog = FileManagerDialog::DeleteConfirm { path, label };
+                    }
+                } else {
+                    state.status = "Select a file or folder to delete (not ..)".to_owned();
+                }
+            } else {
+                state.status = "Open a file manager window first".to_owned();
+            }
+        }
+        Action::FileManagerConfirmDelete => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager(window_id)
+                && let FileManagerDialog::DeleteConfirm { path, .. } = &manager.dialog
+            {
+                let path = path.clone();
+                if let Some(manager) = state.file_manager_mut(window_id) {
+                    manager.dialog = FileManagerDialog::None;
+                }
+                state.status = format!("Removing {}…", path.display());
+                return vec![Effect::DeletePath(window_id, path)];
+            }
+        }
+        Action::FileManagerCancelDialog => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+            {
+                manager.dialog = FileManagerDialog::None;
+                state.status = "Cancelled".to_owned();
+            }
+        }
+        Action::FileManagerBeginRename => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager(window_id)
+                && let Some(path) = selected_entry_path(manager)
+            {
+                let input = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                if let Some(manager) = state.file_manager_mut(window_id) {
+                    manager.dialog = FileManagerDialog::Rename { path, input };
+                    state.status = "Rename · type new name · Enter save · Esc cancel".to_owned();
+                }
+            } else if crate::app::file_manager::target_file_manager_window(state).is_none() {
+                state.status = "Open a file manager window first".to_owned();
+            } else {
+                state.status = "Select a file or folder to rename (not ..)".to_owned();
+            }
+        }
+        Action::FileManagerBeginCreate(kind) => {
+            if let Some(window_id) = resolve_file_manager_window(state) {
+                if let Some(manager) = state.file_manager_mut(window_id) {
+                    manager.dialog = FileManagerDialog::Create {
+                        kind,
+                        input: String::new(),
+                    };
+                    let label = match kind {
+                        CreateKind::File => "file",
+                        CreateKind::Directory => "folder",
+                    };
+                    state.status = format!("New {label} · type name · Enter create · Esc cancel");
+                }
+            } else {
+                state.status = "Open a file manager window first".to_owned();
+            }
+        }
+        Action::FileManagerDialogPush(character) => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+            {
+                match &mut manager.dialog {
+                    FileManagerDialog::Rename { input, .. }
+                    | FileManagerDialog::Create { input, .. } => input.push(character),
+                    _ => {}
+                }
+            }
+        }
+        Action::FileManagerDialogBackspace => {
+            if let Some(window_id) = resolve_file_manager_window(state)
+                && let Some(manager) = state.file_manager_mut(window_id)
+            {
+                match &mut manager.dialog {
+                    FileManagerDialog::Rename { input, .. }
+                    | FileManagerDialog::Create { input, .. } => {
+                        input.pop();
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Action::FileManagerDialogCommit => {
+            return commit_file_manager_dialog(state);
+        }
     }
     Vec::new()
+}
+
+fn commit_file_manager_dialog(state: &mut AppState) -> Vec<Effect> {
+    let Some(window_id) = resolve_file_manager_window(state) else {
+        return Vec::new();
+    };
+    let (dialog, current_path) = {
+        let Some(manager) = state.file_manager(window_id) else {
+            return Vec::new();
+        };
+        (manager.dialog.clone(), manager.current_path.clone())
+    };
+    match dialog {
+        FileManagerDialog::Rename { path, input } => {
+            if let Err(reason) = validate_rename_input(&input) {
+                state.status = format!("Rename: {reason}");
+                return Vec::new();
+            }
+            let name = input.trim();
+            let to = path
+                .parent()
+                .map(|parent| parent.join(name))
+                .unwrap_or_else(|| PathBuf::from(name));
+            if to == path {
+                if let Some(manager) = state.file_manager_mut(window_id) {
+                    manager.dialog = FileManagerDialog::None;
+                }
+                state.status = "Name unchanged".to_owned();
+                return Vec::new();
+            }
+            if let Some(manager) = state.file_manager_mut(window_id) {
+                manager.dialog = FileManagerDialog::None;
+            }
+            vec![Effect::RenamePath(window_id, path, to)]
+        }
+        FileManagerDialog::Create { kind, input } => {
+            if let Err(reason) = validate_rename_input(&input) {
+                state.status = format!("Create: {reason}");
+                return Vec::new();
+            }
+            let name = input.trim();
+            let path = current_path.join(name);
+            if let Some(manager) = state.file_manager_mut(window_id) {
+                manager.dialog = FileManagerDialog::None;
+            }
+            vec![Effect::CreateEntry(window_id, path, kind)]
+        }
+        _ => Vec::new(),
+    }
 }
 
 fn focused_process_window(state: &AppState) -> Option<u64> {
@@ -343,8 +559,26 @@ fn process_match_count(state: &AppState, window_id: u64) -> usize {
     }
 }
 
+fn run_palette_shell(state: &mut AppState) -> Vec<Effect> {
+    let Some(command) = shell_command_from_query(&state.launcher_query) else {
+        state.status = "Enter !command in the palette to run a shell line".to_owned();
+        return Vec::new();
+    };
+    state.launcher_open = false;
+    state.launcher_query.clear();
+    state.launcher_selection = 0;
+    state.launcher_scroll_offset = 0;
+    let terminal_id = open_application(state, ApplicationKind::Terminal);
+    state.status = format!("Running: {command}");
+    vec![
+        Effect::StartTerminal(terminal_id),
+        Effect::WriteTerminal(terminal_id, format!("{command}\n").into_bytes()),
+    ]
+}
+
 fn open_selection_in_terminal(state: &mut AppState) -> Vec<Effect> {
-    let Some(file_window_id) = focused_file_manager_window(state) else {
+    let Some(file_window_id) = resolve_file_manager_window(state) else {
+        state.status = "Open a file manager window first".to_owned();
         return Vec::new();
     };
     let Some(manager) = state.file_manager(file_window_id) else {
@@ -405,6 +639,15 @@ fn focused_file_manager_window(state: &AppState) -> Option<u64> {
         .focused_window()
         .filter(|window| window.application == ApplicationKind::FileManager)
         .map(|window| window.id)
+}
+
+fn resolve_file_manager_window(state: &mut AppState) -> Option<u64> {
+    if let Some(window_id) = focused_file_manager_window(state) {
+        return Some(window_id);
+    }
+    let window_id = crate::app::file_manager::target_file_manager_window(state)?;
+    focus_window(state, window_id);
+    Some(window_id)
 }
 
 fn open_application_effects(
@@ -469,7 +712,7 @@ fn file_manager_go_up(state: &mut AppState) -> Vec<Effect> {
 }
 
 fn reload_focused_file_manager(state: &mut AppState) -> Vec<Effect> {
-    if let Some(window_id) = focused_file_manager_window(state)
+    if let Some(window_id) = resolve_file_manager_window(state)
         && let Some(manager) = state.file_manager(window_id)
     {
         let path = manager.current_path.clone();
@@ -698,6 +941,46 @@ mod tests {
     }
 
     #[test]
+    fn palette_bang_prefix_opens_terminal_with_command() {
+        let mut state = AppState::default();
+        reduce(&mut state, Action::ToggleLauncher);
+        for character in "!echo hi".chars() {
+            reduce(&mut state, Action::PaletteQueryPush(character));
+        }
+        let effects = reduce(&mut state, Action::ExecuteLauncherSelection);
+        assert!(!state.launcher_open);
+        assert_eq!(
+            state.focused_window().map(|window| window.application),
+            Some(ApplicationKind::Terminal)
+        );
+        assert_eq!(effects.len(), 2);
+        assert!(matches!(effects[0], Effect::StartTerminal(_)));
+        assert!(matches!(effects[1], Effect::WriteTerminal(_, _)));
+    }
+
+    #[test]
+    fn palette_filter_narrows_and_opens_terminal() {
+        let mut state = AppState::default();
+        reduce(&mut state, Action::ToggleLauncher);
+        reduce(&mut state, Action::PaletteQueryPush('t'));
+        reduce(&mut state, Action::PaletteQueryPush('e'));
+        reduce(&mut state, Action::PaletteQueryPush('r'));
+        reduce(&mut state, Action::PaletteQueryPush('m'));
+
+        let filtered = crate::app::palette::filtered_entries(&state);
+        assert!(filtered.iter().any(|entry| matches!(
+            entry.action,
+            Action::OpenApplication(ApplicationKind::Terminal)
+        )));
+        reduce(&mut state, Action::ExecuteLauncherSelection);
+        assert!(!state.launcher_open);
+        assert_eq!(
+            state.focused_window().map(|window| window.application),
+            Some(ApplicationKind::Terminal)
+        );
+    }
+
+    #[test]
     fn focusing_a_minimized_window_restores_it() {
         let mut state = AppState::default();
         reduce(
@@ -731,6 +1014,42 @@ mod tests {
             Some(WindowState::Normal)
         );
         assert_eq!(state.current_workspace().focused_window, Some(minimized_id));
+    }
+
+    #[test]
+    fn rename_dialog_commit_schedules_rename_effect() {
+        let mut state = AppState::default();
+        reduce(
+            &mut state,
+            Action::OpenApplication(ApplicationKind::FileManager),
+        );
+        let window_id = state.current_workspace().windows[0].id;
+        let mut manager = crate::app::state::FileManagerState::new(PathBuf::from("/tmp"));
+        manager.listing = Loadable::Ready(crate::machine::DirectoryListing {
+            path: PathBuf::from("/tmp"),
+            entries: vec![crate::machine::FileEntry {
+                name: "old.txt".to_owned(),
+                kind: FileEntryKind::File,
+                size_bytes: Some(0),
+                modified_secs: None,
+            }],
+        });
+        manager.selected_index = 1;
+        manager.dialog = FileManagerDialog::Rename {
+            path: PathBuf::from("/tmp/old.txt"),
+            input: "new.txt".to_owned(),
+        };
+        state.file_managers.insert(window_id, manager);
+
+        let effects = reduce(&mut state, Action::FileManagerDialogCommit);
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            &effects[0],
+            Effect::RenamePath(id, from, to)
+                if *id == window_id
+                    && from == &PathBuf::from("/tmp/old.txt")
+                    && to == &PathBuf::from("/tmp/new.txt")
+        ));
     }
 
     #[test]

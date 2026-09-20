@@ -17,7 +17,7 @@ use crate::{
     ui::{geometry::UiGeometry, interaction::InteractionMap},
 };
 
-pub use router::{FocusContext, KeyDispatch, KeyInputContext, dispatch_key};
+pub use router::{FileManagerDialogMode, FocusContext, KeyDispatch, KeyInputContext, dispatch_key};
 
 pub fn handle_key(key: KeyEvent, context: &KeyInputContext) -> KeyDispatch {
     dispatch_key(key, context)

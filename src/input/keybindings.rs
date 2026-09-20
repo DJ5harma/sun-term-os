@@ -19,7 +19,22 @@ fn quick_launch(key: KeyEvent) -> Option<Action> {
     }
 }
 
+/// Terminals usually send `R` + Shift, not `r` + Shift.
+fn file_manager_rename_shortcut(key: KeyEvent) -> bool {
+    if key.modifiers.intersects(KeyModifiers::CONTROL) {
+        return false;
+    }
+    match key.code {
+        KeyCode::Char('R') => true,
+        KeyCode::Char('r') => key.modifiers.intersects(KeyModifiers::SHIFT),
+        _ => false,
+    }
+}
+
 pub fn file_manager_key(key: KeyEvent) -> Option<Action> {
+    if file_manager_rename_shortcut(key) {
+        return Some(Action::FileManagerBeginRename);
+    }
     match key {
         KeyEvent {
             code: KeyCode::Up, ..
@@ -99,7 +114,61 @@ pub fn file_manager_key(key: KeyEvent) -> Option<Action> {
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(Action::FileManagerOpenInTerminal),
+        KeyEvent {
+            code: KeyCode::Char('d'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        }
+        | KeyEvent {
+            code: KeyCode::Delete,
+            ..
+        } => Some(Action::FileManagerRequestDelete),
+        KeyEvent {
+            code: KeyCode::Char('a'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::FileManagerBeginCreate(
+            crate::app::file_manager::CreateKind::File,
+        )),
+        KeyEvent {
+            code: KeyCode::Char('A'),
+            modifiers: KeyModifiers::SHIFT,
+            ..
+        } => Some(Action::FileManagerBeginCreate(
+            crate::app::file_manager::CreateKind::Directory,
+        )),
         _ => quick_launch(key),
+    }
+}
+
+pub fn file_manager_delete_confirm_key(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        KeyCode::Esc => Some(Action::FileManagerCancelDialog),
+        KeyCode::Char('n' | 'N') => Some(Action::FileManagerCancelDialog),
+        KeyCode::Char('y' | 'Y') | KeyCode::Enter => Some(Action::FileManagerConfirmDelete),
+        _ => None,
+    }
+}
+
+pub fn file_manager_dialog_input_key(key: KeyEvent) -> Option<Action> {
+    match key {
+        KeyEvent {
+            code: KeyCode::Esc, ..
+        } => Some(Action::FileManagerCancelDialog),
+        KeyEvent {
+            code: KeyCode::Enter,
+            ..
+        } => Some(Action::FileManagerDialogCommit),
+        KeyEvent {
+            code: KeyCode::Backspace,
+            ..
+        } => Some(Action::FileManagerDialogBackspace),
+        KeyEvent {
+            code: KeyCode::Char(character),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::FileManagerDialogPush(character)),
+        _ => None,
     }
 }
 
@@ -203,6 +272,7 @@ pub fn action_for_key(
             focus,
             window_pick_mode: false,
             process_filter_active: false,
+            file_manager_dialog: super::router::FileManagerDialogMode::None,
         },
     ) {
         KeyDispatch::Action(action) => Some(action),
@@ -293,7 +363,7 @@ mod tests {
                 false,
                 false
             ),
-            None
+            Some(Action::PaletteQueryPush('q'))
         );
     }
 

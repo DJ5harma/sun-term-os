@@ -10,7 +10,15 @@ use crate::{
     },
 };
 
-pub use super::file_manager::{FileManagerFocus, FileSort, Place, SortColumn};
+pub use super::file_manager::{CreateKind, FileManagerFocus, FileSort, Place, SortColumn};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileManagerDialog {
+    None,
+    DeleteConfirm { path: PathBuf, label: String },
+    Rename { path: PathBuf, input: String },
+    Create { kind: CreateKind, input: String },
+}
 pub use super::process_manager::ProcessManagerState;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +42,7 @@ pub struct FileManagerState {
     pub history_index: usize,
     pub listing: Loadable<DirectoryListing>,
     pub visible_rows: usize,
+    pub dialog: FileManagerDialog,
 }
 
 impl FileManagerState {
@@ -51,6 +60,7 @@ impl FileManagerState {
             history_index: 0,
             listing: Loadable::Loading,
             visible_rows: 1,
+            dialog: FileManagerDialog::None,
         }
     }
 
@@ -82,7 +92,9 @@ pub struct AppState {
     pub workspaces: Vec<Workspace>,
     pub active_workspace: usize,
     pub launcher_open: bool,
+    pub launcher_query: String,
     pub launcher_selection: usize,
+    pub launcher_scroll_offset: usize,
     pub next_window_id: WindowId,
     pub terminal_contents: HashMap<WindowId, String>,
     pub terminal_statuses: HashMap<WindowId, TerminalStatus>,
@@ -100,13 +112,25 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
+        Self::new(3)
+    }
+}
+
+impl AppState {
+    pub fn new(workspace_count: usize) -> Self {
+        let workspace_count = workspace_count.clamp(1, 9);
+        let workspace_hint = if workspace_count == 1 {
+            "F1 workspace".to_owned()
+        } else {
+            format!("F1–F{workspace_count} workspaces")
+        };
         Self {
             machine: MachineDescriptor {
                 id: MachineId("local".to_owned()),
                 name: "This machine".to_owned(),
                 kind: MachineKind::Local,
             },
-            workspaces: (0..3)
+            workspaces: (0..workspace_count)
                 .map(|id| Workspace {
                     id,
                     windows: Vec::new(),
@@ -115,7 +139,9 @@ impl Default for AppState {
                 .collect(),
             active_workspace: 0,
             launcher_open: false,
+            launcher_query: String::new(),
             launcher_selection: 0,
+            launcher_scroll_offset: 0,
             next_window_id: 1,
             terminal_contents: HashMap::new(),
             terminal_statuses: HashMap::new(),
@@ -123,7 +149,9 @@ impl Default for AppState {
             process_managers: HashMap::new(),
             system: Loadable::Loading,
             processes: Loadable::Loading,
-            status: "Welcome · ⊞ Apps · Ctrl+G then 1–9 for windows · F1–F3 workspaces".to_owned(),
+            status: format!(
+                "Welcome · Alt+P palette (! for shell) · Ctrl+G 1–9 windows · {workspace_hint}"
+            ),
             input_debug: false,
             input_debug_line: String::new(),
             window_pick_mode: false,

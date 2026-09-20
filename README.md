@@ -13,6 +13,23 @@ A lightweight, terminal-native desktop environment written in Rust.
 cargo run
 ```
 
+Optional config path:
+
+```bash
+cargo run -- --config /path/to/config.toml
+```
+
+Default config file: `$XDG_CONFIG_HOME/tde/config.toml` or `~/.config/tde/config.toml`.
+
+Example:
+
+```toml
+refresh_interval_secs = 5
+workspace_count = 4
+```
+
+`refresh_interval_secs` is clamped to 1–300. `workspace_count` is clamped to 1–9 (switch with F1–Fn).
+
 Release build:
 
 ```bash
@@ -34,7 +51,7 @@ cargo test
 | Action | Keys |
 |--------|------|
 | Quit | `Ctrl+C` or `q` (when not in a terminal) |
-| App launcher | `Alt+P` or click **⊞ Apps** |
+| Command palette | `Alt+P` or click **⊞ Palette** (type to filter, ↑↓, Enter; `!cmd` runs in a new terminal) |
 | New terminal | `t` |
 | File manager | `f` |
 | Process manager | `p` |
@@ -44,6 +61,9 @@ cargo test
 | Focus window by slot | `Ctrl+G` then `1`–`9` (matches bottom bar order) |
 | Close / minimize / maximize window | `Ctrl+W` / `Ctrl+M` / `Ctrl+F` |
 | File manager: open in terminal | `o` |
+| File manager: trash/delete (confirm) | `d` or `Delete` (uses system trash when available) |
+| File manager: rename | `Shift+R` |
+| File manager: new file / folder | `a` / `Shift+A` |
 | Process manager: filter | `/` then type; `Esc` or `Enter` to finish |
 | Process manager: SIGTERM | `x` on selected row |
 | Input debug overlay | `Ctrl+Alt+D` |

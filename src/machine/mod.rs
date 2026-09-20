@@ -101,4 +101,18 @@ pub trait FilesystemProvider: Send + Sync {
         path: &Path,
         show_hidden: bool,
     ) -> Result<DirectoryListing, CapabilityError>;
+
+    async fn remove_path(&self, path: &Path) -> Result<RemoveOutcome, CapabilityError>;
+
+    async fn rename_path(&self, from: &Path, to: &Path) -> Result<(), CapabilityError>;
+
+    async fn create_file(&self, path: &Path) -> Result<(), CapabilityError>;
+
+    async fn create_directory(&self, path: &Path) -> Result<(), CapabilityError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoveOutcome {
+    MovedToTrash,
+    DeletedPermanently,
 }

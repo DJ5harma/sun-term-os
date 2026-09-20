@@ -30,7 +30,7 @@ pub fn render(frame: &mut Frame, layout: BottomBarGeometry, state: &AppState) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(" ⊞ ", Style::default().fg(theme::BG).bg(theme::AMBER)),
-            Span::styled("Apps", Style::default().fg(theme::TEXT)),
+            Span::styled("Palette", Style::default().fg(theme::TEXT)),
             Span::styled(
                 format!(" {LAUNCHER_SHORTCUT_HINT}"),
                 Style::default().fg(theme::MUTED),

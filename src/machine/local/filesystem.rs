@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 
 use super::super::{
-    CapabilityError, DirectoryListing, FileEntry, FileEntryKind, FilesystemProvider,
+    CapabilityError, DirectoryListing, FileEntry, FileEntryKind, FilesystemProvider, RemoveOutcome,
 };
 
 #[derive(Debug, Default)]
@@ -21,6 +21,115 @@ impl FilesystemProvider for LocalFilesystemProvider {
             .await
             .map_err(|error| CapabilityError::Failed(error.to_string()))?
     }
+
+    async fn remove_path(&self, path: &Path) -> Result<RemoveOutcome, CapabilityError> {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || remove_path_blocking(&path))
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+
+    async fn create_file(&self, path: &Path) -> Result<(), CapabilityError> {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || create_file_blocking(&path))
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+
+    async fn create_directory(&self, path: &Path) -> Result<(), CapabilityError> {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || create_directory_blocking(&path))
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+
+    async fn rename_path(&self, from: &Path, to: &Path) -> Result<(), CapabilityError> {
+        let from = from.to_path_buf();
+        let to = to.to_path_buf();
+        tokio::task::spawn_blocking(move || rename_path_blocking(&from, &to))
+            .await
+            .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+}
+
+fn remove_path_blocking(path: &Path) -> Result<RemoveOutcome, CapabilityError> {
+    if !path.exists() {
+        return Err(CapabilityError::Failed(format!(
+            "Path does not exist: {}",
+            path.display()
+        )));
+    }
+    if trash::delete(path).is_ok() {
+        return Ok(RemoveOutcome::MovedToTrash);
+    }
+    delete_path_blocking(path)?;
+    Ok(RemoveOutcome::DeletedPermanently)
+}
+
+fn create_file_blocking(path: &Path) -> Result<(), CapabilityError> {
+    if path.exists() {
+        return Err(CapabilityError::Failed(format!(
+            "Already exists: {}",
+            path.display()
+        )));
+    }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        return Err(CapabilityError::Failed(format!(
+            "Parent directory missing: {}",
+            parent.display()
+        )));
+    }
+    std::fs::write(path, []).map_err(map_io_error)
+}
+
+fn create_directory_blocking(path: &Path) -> Result<(), CapabilityError> {
+    if path.exists() {
+        return Err(CapabilityError::Failed(format!(
+            "Already exists: {}",
+            path.display()
+        )));
+    }
+    std::fs::create_dir(path).map_err(map_io_error)
+}
+
+fn delete_path_blocking(path: &Path) -> Result<(), CapabilityError> {
+    if !path.exists() {
+        return Err(CapabilityError::Failed(format!(
+            "Path does not exist: {}",
+            path.display()
+        )));
+    }
+    if path.is_dir() {
+        std::fs::remove_dir_all(path).map_err(map_io_error)
+    } else {
+        std::fs::remove_file(path).map_err(map_io_error)
+    }
+}
+
+fn rename_path_blocking(from: &Path, to: &Path) -> Result<(), CapabilityError> {
+    if !from.exists() {
+        return Err(CapabilityError::Failed(format!(
+            "Path does not exist: {}",
+            from.display()
+        )));
+    }
+    if to.exists() {
+        return Err(CapabilityError::Failed(format!(
+            "Destination already exists: {}",
+            to.display()
+        )));
+    }
+    if let Some(parent) = to.parent()
+        && !parent.exists()
+    {
+        return Err(CapabilityError::Failed(format!(
+            "Parent directory missing: {}",
+            parent.display()
+        )));
+    }
+    std::fs::rename(from, to).map_err(map_io_error)
 }
 
 fn list_directory_blocking(
@@ -150,6 +259,40 @@ mod tests {
         let err = list_directory_blocking(Path::new("/no/such/path/for/tde-test"), false)
             .expect_err("missing");
         assert!(matches!(err, CapabilityError::Failed(_)));
+    }
+
+    #[test]
+    fn create_file_and_directory() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let file = root.path().join("new.txt");
+        create_file_blocking(&file).expect("create file");
+        assert!(file.is_file());
+
+        let dir = root.path().join("subdir");
+        create_directory_blocking(&dir).expect("create dir");
+        assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn delete_and_rename_paths() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let file = root.path().join("old.txt");
+        touch(&file);
+        remove_path_blocking(&file).expect("delete file");
+        assert!(!file.exists());
+
+        let folder = root.path().join("dir");
+        fs::create_dir(&folder).expect("mkdir");
+        fs::write(folder.join("nested.txt"), b"x").expect("write");
+        delete_path_blocking(&folder).expect("delete dir");
+        assert!(!folder.exists());
+
+        let rename_src = root.path().join("a.txt");
+        touch(&rename_src);
+        let rename_dst = root.path().join("b.txt");
+        rename_path_blocking(&rename_src, &rename_dst).expect("rename");
+        assert!(!rename_src.exists());
+        assert!(rename_dst.is_file());
     }
 
     #[test]

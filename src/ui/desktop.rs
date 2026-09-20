@@ -18,7 +18,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
     if workspace.windows.is_empty() {
         let text = format!(
             "The desktop is ready.\n\n\
-             Open Apps from the bottom bar (⊞) or press Alt+P.\n\
+             Open the command palette (⊞ Apps or Alt+P) to search commands.\n\
              Press t for a terminal window.\n\
              Press f for the file manager · p for processes · s for system info.\n\
              In the file manager, o opens the selection in a new terminal.\n\
