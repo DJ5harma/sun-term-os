@@ -100,13 +100,13 @@ pub(super) fn reduce(state: &mut AppState, action: AsyncAction) -> Vec<Effect> {
             }
         }
         AsyncAction::TextFileSaveReady(window_id, result) => match result {
-                Ok(()) => {
-                    if let Some(view) = state.text_viewers.get_mut(&window_id) {
-                        view.mark_saved();
-                        view.dialog = crate::app::text_viewer::TextViewerDialog::None;
-                        state.status = format!("Saved {}", view.path.display());
-                    }
+            Ok(()) => {
+                if let Some(view) = state.text_viewers.get_mut(&window_id) {
+                    view.mark_saved();
+                    view.dialog = crate::app::text_viewer::TextViewerDialog::None;
+                    state.status = format!("Saved {}", view.path.display());
                 }
+            }
             Err(error) => state.status = error,
         },
         AsyncAction::ServicesReady(machine_id, result) => {
