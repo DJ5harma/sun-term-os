@@ -18,7 +18,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, hits: &mut HitMap
             "Open Apps from the bottom bar (⊞) or press Ctrl+Shift+P.",
             "Press t for a terminal window.",
             "Press f for the file manager.",
-            "Switch workspaces with F1, F2, or F3.",
+            "Switch workspaces: click F1–F3 above or press those keys.",
         ];
         frame.render_widget(
             Paragraph::new(text.join("\n"))
