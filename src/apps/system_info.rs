@@ -48,5 +48,12 @@ pub fn render(
         .system_info_view(window.id)
         .cloned()
         .unwrap_or(Loadable::Loading);
-    crate::ui::system_info::render(frame, area, &listing, state.capabilities_refreshed_at);
+    crate::ui::system_info::render(
+        frame,
+        area,
+        state,
+        window.id,
+        &listing,
+        state.capabilities_refreshed_at,
+    );
 }

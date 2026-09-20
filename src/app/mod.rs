@@ -1,7 +1,9 @@
 pub(crate) mod effects;
 pub mod file_manager;
+pub mod home_screen;
 pub mod launcher;
 pub mod machines;
+pub(crate) mod offline;
 pub mod palette;
 pub mod process_manager;
 pub(crate) mod reducer;

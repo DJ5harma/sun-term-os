@@ -44,6 +44,12 @@ pub fn dispatch_key(key: KeyEvent, state: &AppState) -> KeyDispatch {
         };
     }
 
+    if state.shows_home_screen()
+        && let Some(action) = apps::home_screen::dispatch_key(normalized, state)
+    {
+        return KeyDispatch::Action(action);
+    }
+
     let dispatch = if let Some(window) = state.focused_window() {
         apps::dispatch_key(window.application, normalized, state)
     } else {

@@ -114,7 +114,7 @@ pub fn render(
     interactions: &mut InteractionMap,
 ) {
     if let Some(view) = state.services_view(window.id) {
-        crate::ui::services::render(frame, area, view, interactions);
+        crate::ui::services::render(frame, area, state, window.id, view, interactions);
     }
 }
 

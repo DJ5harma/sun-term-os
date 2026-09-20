@@ -38,6 +38,8 @@ pub struct SessionFile {
     #[serde(default)]
     pub active_machine_id: Option<String>,
     #[serde(default)]
+    pub connected_machine_ids: Vec<String>,
+    #[serde(default)]
     pub workspaces: Vec<SessionWorkspace>,
 }
 

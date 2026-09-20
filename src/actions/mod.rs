@@ -13,6 +13,7 @@ pub enum Action {
     Machines(MachinesAction),
     Launcher(LauncherAction),
     TextViewer(TextViewerAction),
+    HomeScreen(HomeScreenAction),
     Services(ServicesAction),
     Async(AsyncAction),
 }
@@ -144,12 +145,26 @@ pub enum LauncherAction {
     LauncherFilterBackspace,
     LauncherFilterEnd,
     LaunchSelected,
+    ToggleFavorite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HomeScreenAction {
+    MoveSelection(i32),
+    MoveRow(i32),
+    PageScroll(i32),
+    ActivateSelected,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextViewerAction {
     Scroll(i32),
     PageScroll(i32),
+    BeginOpenPath,
+    DialogPush(char),
+    DialogBackspace,
+    DialogCommit,
+    DialogCancel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

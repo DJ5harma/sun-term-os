@@ -46,7 +46,7 @@ cargo test
 | System info | `s` |
 | Machines (SSH profiles) | `m` |
 | Application launcher | `l` |
-| Text viewer | `v` |
+| Text viewer | `v` · `:` open path · file manager `e` on a file |
 | Service manager | Palette → **Service Manager** |
 | Refresh system/process data | `r` |
 | Workspaces | `F1`–`F3` or click workspace tabs |
@@ -61,14 +61,17 @@ cargo test
 | Process manager: sort | `1` CPU · `2` memory · `3` name · `4` PID |
 | File manager: go to path | `:` |
 | File manager: open with OS handler | `Shift+O` |
+| Text viewer: open path | `:` |
 | File manager: open in text viewer | `e` (files) |
 | Machines: connect / disconnect | `c` / `d` · add host `a` |
-| Launcher: filter / launch | `/` · Enter |
+| Launcher: filter / launch / pin favorite | `/` · Enter · Shift+F (saved to config) |
 | Services: start / stop / restart | `s` / `x` / `r` |
 | Terminal: scrollback | `Alt+PgUp` / `Alt+PgDn` · `Alt+End` follow live |
 | Input debug overlay | `Ctrl+Alt+D` |
 
 Embedded terminals receive all other keys. Host terminals often steal `Ctrl+digit`; the `Ctrl+G` chord is intentional.
+
+An empty workspace shows a **home screen** (app tiles): click a tile, press **Enter**, or use letter shortcuts (`t`, `f`, …). Pin order is configurable under `[home] pinned` in `config.toml`.
 
 ## Architecture
 

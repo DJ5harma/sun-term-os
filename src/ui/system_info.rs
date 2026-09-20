@@ -12,6 +12,8 @@ use super::theme;
 pub fn render(
     frame: &mut Frame,
     area: Rect,
+    state: &crate::app::AppState,
+    window_id: u64,
     listing: &Loadable<crate::machine::SystemSnapshot>,
     refreshed_at: Option<u64>,
 ) {
@@ -27,6 +29,11 @@ pub fn render(
         ratatui::layout::Constraint::Length(1),
     ])
     .split(area);
+    if let Some(hint) = crate::app::offline::window_machine_offline_hint(state, window_id) {
+        frame.render_widget(Paragraph::new(hint).style(theme::muted()), chunks[0]);
+        frame.render_widget(Paragraph::new(footer).style(theme::muted()), chunks[1]);
+        return;
+    }
     match listing {
         Loadable::Loading => frame.render_widget(
             Paragraph::new("Collecting system telemetry…").style(theme::muted()),

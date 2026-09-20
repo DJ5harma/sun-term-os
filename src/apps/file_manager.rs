@@ -315,6 +315,11 @@ pub fn palette_entries(state: &AppState) -> Vec<PaletteEntry> {
             action: Action::FileManager(FileManagerAction::FileManagerBeginGoToPath),
         },
         PaletteEntry {
+            title: "Open in text viewer".to_owned(),
+            detail: "File manager · e on selected file".to_owned(),
+            action: Action::FileManager(FileManagerAction::FileManagerOpenInViewer),
+        },
+        PaletteEntry {
             title: "Open with system".to_owned(),
             detail: "File manager · Shift+O xdg-open / open".to_owned(),
             action: Action::FileManager(FileManagerAction::FileManagerOpenWithSystem),

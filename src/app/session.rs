@@ -6,7 +6,7 @@ use crate::{
     },
     config::{SessionConfig, session},
     domain::ApplicationKind,
-    machine::local::default_start_path,
+    machine::{local::default_start_path, registry::ConnectionState},
 };
 
 pub fn restore_effects(state: &mut AppState, config: &SessionConfig) -> Vec<Effect> {
@@ -26,6 +26,11 @@ pub fn restore_effects(state: &mut AppState, config: &SessionConfig) -> Vec<Effe
     }
     state.active_machine_id = session::decode_machine_id(file.active_machine_id.as_deref());
     let mut effects = Vec::new();
+    for profile_id in &file.connected_machine_ids {
+        effects.push(Effect::Machines(
+            crate::app::effects::MachinesEffect::Connect(profile_id.clone()),
+        ));
+    }
     for (index, saved) in file.workspaces.iter().enumerate() {
         if index >= state.workspaces.len() {
             break;
@@ -83,6 +88,12 @@ fn capture_session(state: &AppState) -> session::SessionFile {
     session::SessionFile {
         active_workspace: state.active_workspace,
         active_machine_id: Some(session::encode_machine_id(&state.active_machine_id)),
+        connected_machine_ids: state
+            .machine_connections
+            .iter()
+            .filter(|(_, connection)| **connection == ConnectionState::Connected)
+            .map(|(id, _)| id.clone())
+            .collect(),
         workspaces: state
             .workspaces
             .iter()
@@ -103,6 +114,7 @@ fn capture_session(state: &AppState) -> session::SessionFile {
                         text_viewer_path: if window.application == ApplicationKind::TextViewer {
                             state
                                 .text_viewer(window.id)
+                                .filter(|viewer| viewer.has_path())
                                 .map(|viewer| viewer.path.clone())
                         } else {
                             None

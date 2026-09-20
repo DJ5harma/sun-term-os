@@ -74,6 +74,33 @@ pub(super) fn reduce(state: &mut AppState, action: LauncherAction) -> Vec<Effect
                 }
             }
         }
+        LauncherAction::ToggleFavorite => {
+            if let Some(id) = window_id {
+                let entries = filtered_entries(state, id);
+                let index = state
+                    .launcher_view(id)
+                    .map(|view| view.selected_index)
+                    .unwrap_or(0);
+                if let Some(entry) = entries.get(index) {
+                    let entry_id = entry.id.clone();
+                    let favorites = &mut state.config.launcher.favorites;
+                    if let Some(position) = favorites.iter().position(|id| id == &entry_id) {
+                        favorites.remove(position);
+                        state.status = format!("Unpinned {}", entry.name);
+                    } else {
+                        favorites.push(entry_id);
+                        state.status = format!("Pinned {}", entry.name);
+                    }
+                    let machine_id = state
+                        .window_machine_id(id)
+                        .unwrap_or(crate::machine::MachineId::Local);
+                    return vec![
+                        Effect::PersistConfig,
+                        Effect::Launcher(LauncherEffect::Discover(machine_id)),
+                    ];
+                }
+            }
+        }
     }
     Vec::new()
 }

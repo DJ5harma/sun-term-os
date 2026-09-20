@@ -76,6 +76,11 @@ fn main_key(key: KeyEvent) -> Option<Action> {
             code: KeyCode::Enter,
             ..
         } => Some(Action::Launcher(LauncherAction::LaunchSelected)),
+        KeyEvent {
+            code: KeyCode::Char('F'),
+            modifiers: KeyModifiers::SHIFT,
+            ..
+        } => Some(Action::Launcher(LauncherAction::ToggleFavorite)),
         _ => None,
     }
 }
@@ -110,7 +115,7 @@ pub fn render(
     interactions: &mut InteractionMap,
 ) {
     if let Some(view) = state.launcher_view(window.id) {
-        crate::ui::app_launcher::render(frame, area, view, interactions);
+        crate::ui::app_launcher::render(frame, area, state, view, interactions);
     }
 }
 
