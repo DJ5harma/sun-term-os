@@ -234,12 +234,11 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             };
         }
         Action::MoveProcessSelection(offset) => {
-            if let Some(window_id) = focused_process_window(state)
-                && let Some(manager) = state.process_manager_mut(window_id)
-                && let Loadable::Ready(processes) = &state.processes
-            {
-                let count = matching_indices(processes, &manager.filter).len();
-                if count > 0 {
+            if let Some(window_id) = focused_process_window(state) {
+                let count = process_match_count(state, window_id);
+                if let Some(manager) = state.process_manager_mut(window_id)
+                    && count > 0
+                {
                     let next = manager.selected_index as i32 + offset;
                     manager.selected_index = next.clamp(0, count as i32 - 1) as usize;
                     manager.clamp_selection(count);
@@ -247,15 +246,14 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             }
         }
         Action::ProcessPageScroll(pages) => {
-            if let Some(window_id) = focused_process_window(state)
-                && let Some(manager) = state.process_manager_mut(window_id)
-                && let Loadable::Ready(processes) = &state.processes
-            {
-                let count = matching_indices(processes, &manager.filter).len();
-                let delta = pages * manager.visible_rows.max(1) as i32;
-                let next = manager.selected_index as i32 + delta;
-                manager.selected_index = next.clamp(0, count.saturating_sub(1) as i32) as usize;
-                manager.clamp_selection(count);
+            if let Some(window_id) = focused_process_window(state) {
+                let count = process_match_count(state, window_id);
+                if let Some(manager) = state.process_manager_mut(window_id) {
+                    let delta = pages * manager.visible_rows.max(1) as i32;
+                    let next = manager.selected_index as i32 + delta;
+                    manager.selected_index = next.clamp(0, count.saturating_sub(1) as i32) as usize;
+                    manager.clamp_selection(count);
+                }
             }
         }
         Action::ProcessFilterBegin => {
@@ -270,23 +268,23 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             }
         }
         Action::ProcessFilterPush(character) => {
-            if let Some(window_id) = focused_process_window(state)
-                && let Some(manager) = state.process_manager_mut(window_id)
-            {
-                manager.filter.push(character);
-                if let Loadable::Ready(processes) = &state.processes {
-                    let count = matching_indices(processes, &manager.filter).len();
+            if let Some(window_id) = focused_process_window(state) {
+                if let Some(manager) = state.process_manager_mut(window_id) {
+                    manager.filter.push(character);
+                }
+                let count = process_match_count(state, window_id);
+                if let Some(manager) = state.process_manager_mut(window_id) {
                     manager.clamp_selection(count);
                 }
             }
         }
         Action::ProcessFilterBackspace => {
-            if let Some(window_id) = focused_process_window(state)
-                && let Some(manager) = state.process_manager_mut(window_id)
-            {
-                manager.filter.pop();
-                if let Loadable::Ready(processes) = &state.processes {
-                    let count = matching_indices(processes, &manager.filter).len();
+            if let Some(window_id) = focused_process_window(state) {
+                if let Some(manager) = state.process_manager_mut(window_id) {
+                    manager.filter.pop();
+                }
+                let count = process_match_count(state, window_id);
+                if let Some(manager) = state.process_manager_mut(window_id) {
                     manager.clamp_selection(count);
                 }
             }
@@ -313,12 +311,11 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             state.status = "No process selected".to_owned();
         }
         Action::SelectProcessRow(window_id, index) => {
-            if focused_process_window(state) == Some(window_id)
-                && let Some(manager) = state.process_manager_mut(window_id)
-                && let Loadable::Ready(processes) = &state.processes
-            {
-                let count = matching_indices(processes, &manager.filter).len();
-                if index < count {
+            if focused_process_window(state) == Some(window_id) {
+                let count = process_match_count(state, window_id);
+                if let Some(manager) = state.process_manager_mut(window_id)
+                    && index < count
+                {
                     manager.selected_index = index;
                     manager.clamp_selection(count);
                 }
