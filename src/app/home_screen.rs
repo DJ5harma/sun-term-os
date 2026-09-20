@@ -99,7 +99,7 @@ fn push_entry(
 impl AppState {
     /// Desktop shows the home grid when no non-minimized window is focused.
     pub fn shows_home_screen(&self) -> bool {
-        self.visible_focus_window().is_none()
+        self.current_workspace().show_desktop || self.visible_focus_window().is_none()
     }
 
     pub fn home_screen_mode(&self) -> Option<HomeScreenMode> {
@@ -122,6 +122,9 @@ impl AppState {
     }
 
     pub fn visible_focus_window(&self) -> Option<&crate::domain::Window> {
+        if self.current_workspace().show_desktop {
+            return None;
+        }
         self.focused_window()
             .filter(|window| window.state != WindowState::Minimized)
     }
@@ -148,7 +151,9 @@ mod tests {
         assert!(!list.is_empty());
         assert_eq!(list[0].kind, ApplicationKind::Terminal);
         assert!(list[0].pinned);
-        let settings = list.iter().find(|entry| entry.kind == ApplicationKind::Settings);
+        let settings = list
+            .iter()
+            .find(|entry| entry.kind == ApplicationKind::Settings);
         assert!(settings.is_some());
         assert!(!settings.unwrap().pinned);
     }

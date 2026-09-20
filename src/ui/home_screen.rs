@@ -12,7 +12,7 @@ use crate::{
         home_screen::{HomeEntry, HomeScreenMode, entries},
     },
     apps::open_action,
-    input::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT, WORKSPACE_HINT},
+    input::{LAUNCHER_SHORTCUT_HINT, SHOW_DESKTOP_HINT, WINDOW_FOCUS_HINT, WORKSPACE_HINT},
 };
 
 use super::{
@@ -31,10 +31,16 @@ pub struct HomeLayout {
     pub grid: Rect,
 }
 
-pub fn layout(area: Rect, entry_count: usize, mode: HomeScreenMode) -> HomeLayout {
+pub fn layout(
+    area: Rect,
+    entry_count: usize,
+    mode: HomeScreenMode,
+    show_desktop: bool,
+) -> HomeLayout {
     let header = 1u16;
     let footer = 1u16;
-    let banner = matches!(mode, HomeScreenMode::WindowsInBackground { .. }) as u16;
+    let banner =
+        (show_desktop || matches!(mode, HomeScreenMode::WindowsInBackground { .. })) as u16;
     let grid_top = area.y + header + banner;
     let grid_height = area.height.saturating_sub(header + footer + banner);
     let columns = column_count(area.width, entry_count);
@@ -44,10 +50,7 @@ pub fn layout(area: Rect, entry_count: usize, mode: HomeScreenMode) -> HomeLayou
         entry_count.div_ceil(columns)
     };
     let row_stride = TILE_HEIGHT + TILE_GAP;
-    let tile_rows_visible = grid_height
-        .checked_div(row_stride)
-        .unwrap_or(1)
-        .max(1) as usize;
+    let tile_rows_visible = grid_height.checked_div(row_stride).unwrap_or(1).max(1) as usize;
     let grid = Rect {
         x: area.x,
         y: grid_top,
@@ -79,7 +82,8 @@ pub fn render(
     interactions: &mut InteractionMap,
 ) {
     let list = entries(&state.config);
-    let layout = layout(area, list.len(), mode);
+    let show_desktop = state.current_workspace().show_desktop;
+    let layout = layout(area, list.len(), mode, show_desktop);
     let home = state.home_screen();
 
     let host = state
@@ -94,23 +98,36 @@ pub fn render(
             Style::default().fg(theme::muted_color()),
         ),
     ]);
-    frame.render_widget(Paragraph::new(header), Rect {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: 1,
-    });
+    frame.render_widget(
+        Paragraph::new(header),
+        Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: 1,
+        },
+    );
 
     let banner_y = area.y + 1;
-    if let HomeScreenMode::WindowsInBackground { total, minimized } = mode {
+    if state.current_workspace().show_desktop {
+        let banner = format!(
+            " Show desktop — {total} window(s) hidden · ⌂ or {SHOW_DESKTOP_HINT} to restore ",
+            total = state.current_workspace().windows.len()
+        );
+        frame.render_widget(
+            Paragraph::new(banner).style(Style::default().fg(theme::muted_color())),
+            Rect {
+                x: area.x,
+                y: banner_y,
+                width: area.width,
+                height: 1,
+            },
+        );
+    } else if let HomeScreenMode::WindowsInBackground { total, minimized } = mode {
         let banner = if minimized == total {
-            format!(
-                " {total} window(s) minimized — bottom bar or {WINDOW_FOCUS_HINT} to restore "
-            )
+            format!(" {total} window(s) minimized — bottom bar or {WINDOW_FOCUS_HINT} to restore ")
         } else {
-            format!(
-                " {total} window(s) open — bottom bar or {WINDOW_FOCUS_HINT} to focus "
-            )
+            format!(" {total} window(s) open — bottom bar or {WINDOW_FOCUS_HINT} to focus ")
         };
         frame.render_widget(
             Paragraph::new(banner).style(Style::default().fg(theme::muted_color())),
@@ -191,11 +208,7 @@ fn render_grid(
             };
             let focused = index == view.selected;
             render_tile(frame, rect, entry, focused);
-            interactions.register(
-                InteractionLayer::Content,
-                rect,
-                open_action(entry.kind),
-            );
+            interactions.register(InteractionLayer::Content, rect, open_action(entry.kind));
         }
     }
 }
@@ -243,6 +256,8 @@ fn truncate(text: &str, max_len: usize) -> String {
     }
     format!(
         "{}…",
-        text.chars().take(max_len.saturating_sub(1)).collect::<String>()
+        text.chars()
+            .take(max_len.saturating_sub(1))
+            .collect::<String>()
     )
 }

@@ -6,7 +6,7 @@ mod pointer;
 mod router;
 pub mod terminal_encode;
 
-pub use bindings::{LAUNCHER_SHORTCUT_HINT, WINDOW_FOCUS_HINT, WORKSPACE_HINT};
+pub use bindings::{LAUNCHER_SHORTCUT_HINT, SHOW_DESKTOP_HINT, WINDOW_FOCUS_HINT, WORKSPACE_HINT};
 pub use mouse_click::DoubleClickState;
 
 use crossterm::event::{KeyEvent, MouseEvent};

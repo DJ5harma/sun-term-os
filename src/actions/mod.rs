@@ -32,6 +32,7 @@ pub enum ShellAction {
     ToggleMaximizeWindow,
     SwitchWorkspace(usize),
     ToggleInputDebug,
+    ToggleShowDesktop,
 }
 
 #[derive(Debug, Clone, PartialEq)]
