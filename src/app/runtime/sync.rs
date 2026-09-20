@@ -36,7 +36,7 @@ pub fn sync_process_manager_visible_rows(
         .process_manager(window.id)
         .map(|manager| match &manager.listing {
             Loadable::Ready(processes) => {
-                process_manager::matching_indices(processes, &manager.filter).len()
+                process_manager::matching_indices(processes, &manager.filter, manager.sort).len()
             }
             _ => 0,
         })

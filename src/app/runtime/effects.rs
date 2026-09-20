@@ -3,6 +3,7 @@ use crate::{
     app::{
         effects::Effect,
         reducer,
+        runtime::watches::DirectoryWatchHub,
         state::{AppState, Loadable},
     },
     apps,
@@ -13,6 +14,7 @@ use crate::{
 pub struct EffectExecutor {
     pub machine: Machine,
     pub terminal_manager: TerminalManager,
+    pub directory_watches: DirectoryWatchHub,
 }
 
 impl EffectExecutor {
@@ -41,10 +43,14 @@ impl EffectExecutor {
             .list_directory(&path, show_hidden)
             .await
             .map_err(|error| error.to_string());
+        let ok = result.is_ok();
         reducer::reduce(
             state,
             Action::Async(AsyncAction::DirectoryReady(window_id, result)),
         );
+        if ok {
+            self.directory_watches.watch_directory(window_id, path);
+        }
     }
 
     pub(crate) async fn refresh_capabilities(&mut self, state: &mut AppState) {

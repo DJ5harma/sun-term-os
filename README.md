@@ -26,6 +26,16 @@ Example:
 ```toml
 refresh_interval_secs = 5
 workspace_count = 4
+
+# Optional theme (hex colors)
+# theme.background = "#0d1014"
+# theme.surface = "#161b22"
+# theme.accent = "#f3b84c"
+# theme.text = "#e0e5ec"
+
+# Session restore (default: ~/.config/tde/session.toml)
+# session.restore_on_start = true
+# session.save_on_exit = true
 ```
 
 `refresh_interval_secs` is clamped to 1–300. `workspace_count` is clamped to 1–9 (switch with F1–Fn).
@@ -65,7 +75,11 @@ cargo test
 | File manager: rename | `Shift+R` |
 | File manager: new file / folder | `a` / `Shift+A` |
 | Process manager: filter | `/` then type; `Esc` or `Enter` to finish |
-| Process manager: SIGTERM | `x` on selected row |
+| Process manager: SIGTERM / SIGKILL | `x` / `Shift+X` on selected row |
+| Process manager: sort | `1` CPU · `2` memory · `3` name · `4` PID |
+| File manager: go to path | `:` |
+| File manager: open with OS handler | `Shift+O` |
+| Terminal: scrollback | `Alt+PgUp` / `Alt+PgDn` · `Alt+End` follow live |
 | Input debug overlay | `Ctrl+Alt+D` |
 
 Embedded terminals receive all other keys. Host terminals often steal `Ctrl+digit`; the `Ctrl+G` chord is intentional.

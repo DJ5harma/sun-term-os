@@ -74,9 +74,9 @@ pub fn dispatch_key(key: KeyEvent, state: &AppState) -> AppKeyResult {
 
     let action = match dialog {
         FileManagerDialog::DeleteConfirm { .. } => delete_confirm_key(key),
-        FileManagerDialog::Rename { .. } | FileManagerDialog::Create { .. } => {
-            dialog_input_key(key)
-        }
+        FileManagerDialog::Rename { .. }
+        | FileManagerDialog::Create { .. }
+        | FileManagerDialog::GoToPath { .. } => dialog_input_key(key),
         FileManagerDialog::None => main_key(key),
     };
 
@@ -228,11 +228,25 @@ fn main_key(key: KeyEvent) -> Option<Action> {
             SortColumn::Modified,
         ))),
         KeyEvent {
+            code: KeyCode::Char(':'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::FileManager(
+            FileManagerAction::FileManagerBeginGoToPath,
+        )),
+        KeyEvent {
             code: KeyCode::Char('o'),
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(Action::FileManager(
             FileManagerAction::FileManagerOpenInTerminal,
+        )),
+        KeyEvent {
+            code: KeyCode::Char('O'),
+            modifiers: KeyModifiers::SHIFT,
+            ..
+        } => Some(Action::FileManager(
+            FileManagerAction::FileManagerOpenWithSystem,
         )),
         KeyEvent {
             code: KeyCode::Char('d'),
@@ -289,6 +303,16 @@ pub fn palette_entries(state: &AppState) -> Vec<PaletteEntry> {
             action: Action::FileManager(FileManagerAction::ReloadFileManager),
         },
         PaletteEntry {
+            title: "Go to path".to_owned(),
+            detail: "File manager · : then type path".to_owned(),
+            action: Action::FileManager(FileManagerAction::FileManagerBeginGoToPath),
+        },
+        PaletteEntry {
+            title: "Open with system".to_owned(),
+            detail: "File manager · Shift+O xdg-open / open".to_owned(),
+            action: Action::FileManager(FileManagerAction::FileManagerOpenWithSystem),
+        },
+        PaletteEntry {
             title: "Open in terminal".to_owned(),
             detail: "File manager · run shell in selection".to_owned(),
             action: Action::FileManager(FileManagerAction::FileManagerOpenInTerminal),
@@ -318,6 +342,23 @@ pub fn palette_entries(state: &AppState) -> Vec<PaletteEntry> {
             )),
         },
     ]
+}
+
+fn open_path_with_system(path: &std::path::Path) -> Result<(), String> {
+    use std::process::Command;
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").arg(path).status();
+    #[cfg(target_os = "windows")]
+    let status = Command::new("cmd")
+        .args(["/C", "start", "", path.to_string_lossy().as_ref()])
+        .status();
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let status = Command::new("xdg-open").arg(path).status();
+    match status {
+        Ok(exit) if exit.success() => Ok(()),
+        Ok(exit) => Err(format!("exit code {}", exit)),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 pub async fn run_effect(
@@ -375,6 +416,15 @@ pub async fn run_effect(
                     }
                 }
                 Err(error) => state.status = format!("Create failed: {error}"),
+            }
+        }
+        FileManagerEffect::OpenWithSystem(path) => {
+            let display = path.display().to_string();
+            let result = tokio::task::spawn_blocking(move || open_path_with_system(&path)).await;
+            match result {
+                Ok(Ok(())) => state.status = format!("Opened {display}"),
+                Ok(Err(error)) => state.status = format!("Open failed: {error}"),
+                Err(error) => state.status = format!("Open failed: {error}"),
             }
         }
         FileManagerEffect::RenamePath(window_id, from, to) => {

@@ -31,6 +31,7 @@ impl SystemInfoProvider for LocalSystemInfoProvider {
                 })
                 .collect();
 
+            let load = System::load_average();
             SystemSnapshot {
                 hostname: System::host_name().unwrap_or_else(|| "unknown host".to_owned()),
                 os: System::long_os_version().unwrap_or_else(|| "unknown OS".to_owned()),
@@ -39,6 +40,9 @@ impl SystemInfoProvider for LocalSystemInfoProvider {
                 memory_used: system.used_memory(),
                 memory_total: system.total_memory(),
                 uptime_seconds: System::uptime(),
+                load_one: load.one,
+                load_five: load.five,
+                load_fifteen: load.fifteen,
                 disks,
             }
         })
@@ -95,6 +99,25 @@ impl ProcessProvider for LocalProcessProvider {
                 _ => Err(CapabilityError::Failed(format!(
                     "could not signal PID {pid}"
                 ))),
+            }
+        })
+        .await
+        .map_err(|error| CapabilityError::Failed(error.to_string()))?
+    }
+
+    async fn kill_process_force(&self, pid: u32) -> Result<(), CapabilityError> {
+        tokio::task::spawn_blocking(move || {
+            let mut system = System::new();
+            system.refresh_processes(
+                ProcessesToUpdate::Some(&[sysinfo::Pid::from_u32(pid)]),
+                true,
+            );
+            let process = system
+                .process(sysinfo::Pid::from_u32(pid))
+                .ok_or_else(|| CapabilityError::Failed(format!("process {pid} not found")))?;
+            match process.kill_with(Signal::Kill) {
+                Some(true) => Ok(()),
+                _ => Err(CapabilityError::Failed(format!("could not kill PID {pid}"))),
             }
         })
         .await

@@ -1,7 +1,8 @@
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{Frame, layout::Rect};
 
 use crate::{
+    actions::{Action, TerminalAction},
     app::{
         AppState, TerminalStatus,
         effects::{Effect, TerminalEffect},
@@ -41,6 +42,20 @@ pub fn on_open_window(state: &mut AppState, window_id: WindowId) {
 }
 
 pub fn dispatch_key(key: KeyEvent, _state: &AppState) -> AppKeyResult {
+    if key.modifiers.contains(KeyModifiers::ALT) {
+        match key.code {
+            KeyCode::PageUp => {
+                return AppKeyResult::Action(Action::Terminal(TerminalAction::ScrollOutput(-3)));
+            }
+            KeyCode::PageDown => {
+                return AppKeyResult::Action(Action::Terminal(TerminalAction::ScrollOutput(3)));
+            }
+            KeyCode::End => {
+                return AppKeyResult::Action(Action::Terminal(TerminalAction::ScrollToEnd));
+            }
+            _ => {}
+        }
+    }
     if let Some(bytes) = encode_key(key) {
         AppKeyResult::Terminal(bytes)
     } else {

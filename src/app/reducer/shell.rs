@@ -8,7 +8,9 @@ use super::Effect;
 
 pub(super) fn reduce(state: &mut AppState, action: ShellAction) -> Vec<Effect> {
     match action {
-        ShellAction::Quit => state.should_quit = true,
+        ShellAction::Quit => {
+            state.should_quit = true;
+        }
         ShellAction::Refresh => {
             state.mark_capability_refresh_loading();
             state.status = "Refreshing local capabilities…".to_owned();
@@ -129,7 +131,7 @@ fn focus_window_by_offset(state: &mut AppState, offset: isize) {
     state.current_workspace_mut().focused_window = Some(visible[next]);
 }
 
-pub(super) fn open_application(state: &mut AppState, application: ApplicationKind) -> u64 {
+pub(crate) fn open_application(state: &mut AppState, application: ApplicationKind) -> u64 {
     let id = state.next_window_id;
     state.next_window_id += 1;
     state.current_workspace_mut().windows.push(Window {
@@ -143,7 +145,7 @@ pub(super) fn open_application(state: &mut AppState, application: ApplicationKin
     id
 }
 
-pub(super) fn open_application_effects(
+pub(crate) fn open_application_effects(
     state: &mut AppState,
     application: ApplicationKind,
     window_id: u64,

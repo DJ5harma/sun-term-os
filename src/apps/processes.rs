@@ -5,6 +5,7 @@ use crate::{
     actions::{Action, ProcessAction, ShellAction},
     app::{
         effects::{Effect, ProcessEffect},
+        process_manager::ProcessSortColumn,
         state::AppState,
     },
     domain::{ApplicationKind, Window, WindowId},
@@ -81,9 +82,42 @@ fn manager_key(key: KeyEvent) -> Option<Action> {
         } => Some(Action::Process(ProcessAction::ProcessFilterBegin)),
         KeyEvent {
             code: KeyCode::Char('x'),
+            modifiers: KeyModifiers::SHIFT,
+            ..
+        } => Some(Action::Process(ProcessAction::ProcessKillForceSelected)),
+        KeyEvent {
+            code: KeyCode::Char('x'),
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(Action::Process(ProcessAction::ProcessKillSelected)),
+        KeyEvent {
+            code: KeyCode::Char('1'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::Process(ProcessAction::ProcessSetSort(
+            ProcessSortColumn::Cpu,
+        ))),
+        KeyEvent {
+            code: KeyCode::Char('2'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::Process(ProcessAction::ProcessSetSort(
+            ProcessSortColumn::Memory,
+        ))),
+        KeyEvent {
+            code: KeyCode::Char('3'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::Process(ProcessAction::ProcessSetSort(
+            ProcessSortColumn::Name,
+        ))),
+        KeyEvent {
+            code: KeyCode::Char('4'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::Process(ProcessAction::ProcessSetSort(
+            ProcessSortColumn::Pid,
+        ))),
         KeyEvent {
             code: KeyCode::Char('r'),
             modifiers: KeyModifiers::NONE,
@@ -139,11 +173,21 @@ pub async fn run_effect(
     effect: ProcessEffect,
 ) {
     use crate::app::effects::ProcessEffect;
-    let ProcessEffect::Kill(pid) = effect;
-    let result = executor.machine.processes.kill_process(pid).await;
-    match result {
-        Ok(()) => state.status = format!("Sent SIGTERM to PID {pid}"),
-        Err(error) => state.status = format!("Kill failed: {error}"),
+    match effect {
+        ProcessEffect::Kill(pid) => {
+            let result = executor.machine.processes.kill_process(pid).await;
+            match result {
+                Ok(()) => state.status = format!("Sent SIGTERM to PID {pid}"),
+                Err(error) => state.status = format!("Kill failed: {error}"),
+            }
+        }
+        ProcessEffect::KillForce(pid) => {
+            let result = executor.machine.processes.kill_process_force(pid).await;
+            match result {
+                Ok(()) => state.status = format!("Sent SIGKILL to PID {pid}"),
+                Err(error) => state.status = format!("Force kill failed: {error}"),
+            }
+        }
     }
     executor.refresh_capabilities(state).await;
 }

@@ -24,9 +24,11 @@ pub enum FileManagerEffect {
     DeletePath(WindowId, PathBuf),
     RenamePath(WindowId, PathBuf, PathBuf),
     CreateEntry(WindowId, PathBuf, CreateKind),
+    OpenWithSystem(PathBuf),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProcessEffect {
     Kill(u32),
+    KillForce(u32),
 }

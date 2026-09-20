@@ -25,6 +25,9 @@ pub struct SystemSnapshot {
     pub memory_used: u64,
     pub memory_total: u64,
     pub uptime_seconds: u64,
+    pub load_one: f64,
+    pub load_five: f64,
+    pub load_fifteen: f64,
     pub disks: Vec<DiskSnapshot>,
 }
 
@@ -56,6 +59,8 @@ pub trait ProcessProvider: Send + Sync {
     async fn processes(&self) -> Result<Vec<ProcessInfo>, CapabilityError>;
 
     async fn kill_process(&self, pid: u32) -> Result<(), CapabilityError>;
+
+    async fn kill_process_force(&self, pid: u32) -> Result<(), CapabilityError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -28,7 +28,14 @@ pub fn render(
     let help = if manager.filter_active {
         format!(" filter: {}▌  Esc done · Enter apply ", manager.filter)
     } else {
-        " ↑↓ move · / filter · x SIGTERM · r refresh · x kills selection ".to_owned()
+        format!(
+            " ↑↓ move · / filter · x SIGTERM · Shift+X SIGKILL · 1–4 sort ({}) · r refresh{}",
+            manager.sort.label(),
+            manager
+                .last_refreshed_at
+                .map(|_| " · live")
+                .unwrap_or_default()
+        )
     };
     if area.height <= header_rows {
         frame.render_widget(Paragraph::new(help).style(theme::muted()), area);
@@ -61,7 +68,7 @@ pub fn render(
             );
         }
         Loadable::Ready(processes) => {
-            let indices = matching_indices(processes, &manager.filter);
+            let indices = matching_indices(processes, &manager.filter, manager.sort);
             if indices.is_empty() {
                 frame.render_widget(
                     Paragraph::new("No processes match the filter.").style(theme::muted()),

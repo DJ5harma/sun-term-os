@@ -3,6 +3,12 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+pub mod session;
+pub mod theme;
+
+pub use session::SessionConfig;
+pub use theme::ThemeConfig;
+
 const MIN_REFRESH_SECS: u64 = 1;
 const MAX_REFRESH_SECS: u64 = 300;
 const MIN_WORKSPACES: usize = 1;
@@ -14,6 +20,10 @@ pub struct Config {
     pub refresh_interval_secs: u64,
     #[serde(default = "default_workspace_count")]
     pub workspace_count: usize,
+    #[serde(default)]
+    pub theme: ThemeConfig,
+    #[serde(default)]
+    pub session: SessionConfig,
 }
 
 impl Default for Config {
@@ -21,6 +31,8 @@ impl Default for Config {
         Self {
             refresh_interval_secs: default_refresh_interval_secs(),
             workspace_count: default_workspace_count(),
+            theme: ThemeConfig::default(),
+            session: SessionConfig::default(),
         }
     }
 }
@@ -40,6 +52,8 @@ impl Config {
                 .refresh_interval_secs
                 .clamp(MIN_REFRESH_SECS, MAX_REFRESH_SECS),
             workspace_count: self.workspace_count.clamp(MIN_WORKSPACES, MAX_WORKSPACES),
+            theme: self.theme,
+            session: self.session,
         }
     }
 }
@@ -82,6 +96,8 @@ mod tests {
         let config = Config {
             refresh_interval_secs: 0,
             workspace_count: 20,
+            theme: ThemeConfig::default(),
+            session: SessionConfig::default(),
         }
         .normalized();
         assert_eq!(config.refresh_interval_secs, MIN_REFRESH_SECS);

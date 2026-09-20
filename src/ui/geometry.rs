@@ -35,7 +35,7 @@ impl Default for UiGeometry {
     }
 }
 
-pub const TOP_BAR_HEIGHT: u16 = 3;
+pub const TOP_BAR_HEIGHT: u16 = 1;
 pub const BOTTOM_BAR_HEIGHT: u16 = 1;
 
 pub fn calculate(area: Rect, _state: &AppState) -> UiGeometry {
