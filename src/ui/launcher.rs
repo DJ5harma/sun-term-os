@@ -17,8 +17,8 @@ fn palette_block() -> Block<'static> {
     Block::default()
         .title(" COMMAND PALETTE ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::AMBER))
-        .style(Style::default().bg(theme::SURFACE))
+        .border_style(Style::default().fg(theme::accent()))
+        .style(Style::default().bg(theme::surface()))
 }
 
 /// List rows that fit below the query line (matches scroll clamping).
@@ -49,7 +49,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
             Span::styled("> ", theme::active()),
             Span::styled(
                 state.launcher_query.as_str(),
-                Style::default().fg(theme::TEXT),
+                Style::default().fg(theme::text()),
             ),
             Span::styled("▌", theme::active()),
         ])
@@ -80,7 +80,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
             let style = if selected {
                 theme::active()
             } else {
-                Style::default().fg(theme::TEXT)
+                Style::default().fg(theme::text())
             };
             ListItem::new(Line::from(vec![
                 Span::styled(format!("  {}  ", entry.title), style),

@@ -10,8 +10,6 @@ const DEFAULT_SURFACE_ALT: Color = Color::Rgb(31, 39, 49);
 const DEFAULT_TEXT: Color = Color::Rgb(224, 229, 236);
 const DEFAULT_MUTED: Color = Color::Rgb(126, 140, 157);
 const DEFAULT_AMBER: Color = Color::Rgb(243, 184, 76);
-const DEFAULT_BLUE: Color = Color::Rgb(100, 190, 255);
-const DEFAULT_GREEN: Color = Color::Rgb(113, 213, 148);
 const DEFAULT_RED: Color = Color::Rgb(237, 116, 116);
 
 #[derive(Clone, Copy)]
@@ -75,18 +73,14 @@ fn p() -> Palette {
         .unwrap_or_else(|_| default_palette())
 }
 
-pub const BG: Color = DEFAULT_BG;
-pub const SURFACE: Color = DEFAULT_SURFACE;
-pub const SURFACE_ALT: Color = DEFAULT_SURFACE_ALT;
-pub const TEXT: Color = DEFAULT_TEXT;
-pub const MUTED: Color = DEFAULT_MUTED;
-pub const AMBER: Color = DEFAULT_AMBER;
-pub const BLUE: Color = DEFAULT_BLUE;
-pub const GREEN: Color = DEFAULT_GREEN;
-pub const RED: Color = DEFAULT_RED;
-
+pub fn bg() -> Color {
+    p().bg
+}
 pub fn surface() -> Color {
     p().surface
+}
+pub fn surface_alt() -> Color {
+    p().surface_alt
 }
 pub fn text() -> Color {
     p().text
@@ -94,8 +88,20 @@ pub fn text() -> Color {
 pub fn muted_color() -> Color {
     p().muted
 }
+/// Accent / highlight (selection, active tab, key hints).
+pub fn accent() -> Color {
+    p().amber
+}
 pub fn red() -> Color {
     p().red
+}
+/// Emphasis for links and navigation hints (uses accent).
+pub fn blue() -> Color {
+    p().amber
+}
+/// Positive / online indicator (uses accent).
+pub fn green() -> Color {
+    p().amber
 }
 
 pub fn base() -> Style {

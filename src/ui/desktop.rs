@@ -30,9 +30,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .border_style(Style::default().fg(theme::SURFACE_ALT)),
+                        .border_style(Style::default().fg(theme::surface_alt())),
                 )
-                .style(Style::default().fg(theme::TEXT))
+                .style(Style::default().fg(theme::text()))
                 .wrap(Wrap { trim: true }),
             area,
         );
@@ -52,9 +52,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, interactions: &mu
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .border_style(Style::default().fg(theme::SURFACE_ALT)),
+                        .border_style(Style::default().fg(theme::surface_alt())),
                 )
-                .style(Style::default().fg(theme::TEXT))
+                .style(Style::default().fg(theme::text()))
                 .wrap(Wrap { trim: true }),
             area,
         );

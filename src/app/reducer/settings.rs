@@ -1,9 +1,6 @@
 use crate::{
     actions::SettingsAction,
-    app::{
-        AppState,
-        settings::SettingsRow,
-    },
+    app::{AppState, settings::SettingsRow},
     domain::ApplicationKind,
     ui::theme,
 };
@@ -40,20 +37,14 @@ pub(super) fn reduce(state: &mut AppState, action: SettingsAction) -> Vec<Effect
                         state.config.session.save_on_exit = !state.config.session.save_on_exit;
                     }
                     SettingsRow::ThemePreset => {
-                        let next_index = state
-                            .settings_view(window_id)
-                            .map(|view| {
-                                (view.theme_preset_index + 1)
-                                    % crate::app::theme_presets::len()
-                            });
+                        let next_index = state.settings_view(window_id).map(|view| {
+                            (view.theme_preset_index + 1) % crate::app::theme_presets::len()
+                        });
                         if let Some(next_index) = next_index {
                             if let Some(view) = state.settings_view_mut(window_id) {
                                 view.theme_preset_index = next_index;
                             }
-                            crate::app::theme_presets::apply(
-                                next_index,
-                                &mut state.config.theme,
-                            );
+                            crate::app::theme_presets::apply(next_index, &mut state.config.theme);
                             theme::reload(&state.config.theme);
                         }
                     }
