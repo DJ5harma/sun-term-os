@@ -17,7 +17,7 @@ use crate::{
     actions::Action,
     events::Event,
     input,
-    machine::{ProcessProvider, SystemInfoProvider},
+    machine::{FilesystemProvider, ProcessProvider, SystemInfoProvider},
     terminal::{TerminalEvent, TerminalManager},
     ui,
 };
@@ -30,12 +30,14 @@ pub struct App {
     terminal_manager: TerminalManager,
     system_provider: Arc<dyn SystemInfoProvider>,
     process_provider: Arc<dyn ProcessProvider>,
+    filesystem_provider: Arc<dyn FilesystemProvider>,
 }
 
 impl App {
     pub fn new(
         system_provider: Arc<dyn SystemInfoProvider>,
         process_provider: Arc<dyn ProcessProvider>,
+        filesystem_provider: Arc<dyn FilesystemProvider>,
     ) -> Self {
         Self {
             state: AppState::default(),
@@ -43,6 +45,7 @@ impl App {
             terminal_manager: TerminalManager::default(),
             system_provider,
             process_provider,
+            filesystem_provider,
         }
     }
 
@@ -86,9 +89,16 @@ impl App {
                     .focused_window()
                     .filter(|window| window.application == ApplicationKind::Terminal)
                     .map(|window| window.id);
-                if let Some(action) =
-                    input::action_for_key(key, self.state.launcher_open, terminal_window.is_some())
-                {
+                let file_manager_focused = self
+                    .state
+                    .focused_window()
+                    .is_some_and(|window| window.application == ApplicationKind::FileManager);
+                if let Some(action) = input::action_for_key(
+                    key,
+                    self.state.launcher_open,
+                    terminal_window.is_some(),
+                    file_manager_focused,
+                ) {
                     self.dispatch(action).await;
                 } else if let Some(window_id) = terminal_window
                     && !self.state.launcher_open
@@ -117,6 +127,9 @@ impl App {
             Event::ProcessesLoaded(result) => {
                 self.state.apply_event(Event::ProcessesLoaded(result))
             }
+            Event::DirectoryLoaded(window_id, result) => self
+                .state
+                .apply_event(Event::DirectoryLoaded(window_id, result)),
             Event::Tick => self.dispatch(Action::Refresh).await,
         }
     }
@@ -146,6 +159,20 @@ impl App {
                     self.terminal_manager.close(window_id);
                     self.state.remove_terminal_content(window_id);
                     self.state.remove_terminal_status(window_id);
+                }
+                Effect::ReadDirectory(window_id, path) => {
+                    let show_hidden = self
+                        .state
+                        .file_manager(window_id)
+                        .map(|manager| manager.show_hidden)
+                        .unwrap_or(false);
+                    let result = self
+                        .filesystem_provider
+                        .list_directory(&path, show_hidden)
+                        .await
+                        .map_err(|error| error.to_string());
+                    self.state
+                        .apply_event(Event::DirectoryLoaded(window_id, result));
                 }
             }
         }

@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use async_trait::async_trait;
 use thiserror::Error;
 
@@ -57,4 +59,35 @@ pub trait SystemInfoProvider: Send + Sync {
 #[async_trait]
 pub trait ProcessProvider: Send + Sync {
     async fn processes(&self) -> Result<Vec<ProcessInfo>, CapabilityError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileEntryKind {
+    File,
+    Directory,
+    Symlink,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileEntry {
+    pub name: String,
+    pub kind: FileEntryKind,
+    pub size_bytes: Option<u64>,
+    pub modified_secs: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryListing {
+    pub path: PathBuf,
+    pub entries: Vec<FileEntry>,
+}
+
+#[async_trait]
+pub trait FilesystemProvider: Send + Sync {
+    async fn list_directory(
+        &self,
+        path: &Path,
+        show_hidden: bool,
+    ) -> Result<DirectoryListing, CapabilityError>;
 }

@@ -11,6 +11,7 @@ pub fn action_for_key(
     key: KeyEvent,
     launcher_open: bool,
     terminal_focused: bool,
+    file_manager_focused: bool,
 ) -> Option<Action> {
     if launcher_open {
         return match key.code {
@@ -18,6 +19,59 @@ pub fn action_for_key(
             KeyCode::Up => Some(Action::MoveLauncherUp),
             KeyCode::Down => Some(Action::MoveLauncherDown),
             KeyCode::Enter => Some(Action::ExecuteLauncherSelection),
+            _ => None,
+        };
+    }
+
+    if file_manager_focused {
+        return match key {
+            KeyEvent {
+                code: KeyCode::Char('w'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => Some(Action::CloseWindow),
+            KeyEvent {
+                code: KeyCode::Char('m'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => Some(Action::MinimizeWindow),
+            KeyEvent {
+                code: KeyCode::Char('f'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => Some(Action::ToggleMaximizeWindow),
+            KeyEvent {
+                code: KeyCode::Char(number @ '1'..='3'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(Action::SwitchWorkspace(number as usize - '1' as usize))
+            }
+            KeyEvent {
+                code: KeyCode::Up, ..
+            } => Some(Action::MoveFileSelection(-1)),
+            KeyEvent {
+                code: KeyCode::Down,
+                ..
+            } => Some(Action::MoveFileSelection(1)),
+            KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            } => Some(Action::OpenSelectedEntry),
+            KeyEvent {
+                code: KeyCode::Backspace,
+                ..
+            } => Some(Action::FileManagerParent),
+            KeyEvent {
+                code: KeyCode::Char('h'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::ToggleFileManagerHidden),
+            KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => Some(Action::ReloadFileManager),
             _ => None,
         };
     }
@@ -83,6 +137,11 @@ pub fn action_for_key(
             code: KeyCode::Char('t'),
             ..
         } => Some(Action::OpenApplication(ApplicationKind::Terminal)),
+        KeyEvent {
+            code: KeyCode::Char('f'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(Action::OpenApplication(ApplicationKind::FileManager)),
         KeyEvent {
             code: KeyCode::Char('w'),
             modifiers: KeyModifiers::CONTROL,
@@ -181,6 +240,13 @@ pub fn action_for_mouse(
             return Some(Action::FocusWindow(*id));
         }
     }
+    for (window_id, rows) in &geometry.file_manager_row_targets {
+        for (index, area) in rows {
+            if area.contains(position) {
+                return Some(Action::SelectFileManagerRow(*window_id, *index));
+            }
+        }
+    }
     None
 }
 
@@ -219,7 +285,7 @@ mod tests {
     fn ctrl_c_is_forwarded_to_a_focused_terminal() {
         let key = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
-        assert_eq!(action_for_key(key, false, true), None);
+        assert_eq!(action_for_key(key, false, true, false), None);
         assert_eq!(terminal_input(key), Some(vec![3]));
     }
 
@@ -229,6 +295,7 @@ mod tests {
             action_for_key(
                 KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
                 false,
+                false,
                 false
             ),
             Some(Action::ToggleLauncher)
@@ -237,9 +304,19 @@ mod tests {
             action_for_key(
                 KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
                 false,
+                false,
                 false
             ),
             Some(Action::OpenApplication(ApplicationKind::Terminal))
+        );
+        assert_eq!(
+            action_for_key(
+                KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
+                false,
+                false,
+                false
+            ),
+            Some(Action::OpenApplication(ApplicationKind::FileManager))
         );
     }
 
@@ -249,6 +326,7 @@ mod tests {
             action_for_key(
                 KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
                 true,
+                false,
                 false
             ),
             Some(Action::MoveLauncherDown)
@@ -257,6 +335,7 @@ mod tests {
             action_for_key(
                 KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE),
                 true,
+                false,
                 false
             ),
             None
@@ -278,6 +357,28 @@ mod tests {
         assert_eq!(
             action_for_mouse(mouse, &state, &geometry),
             Some(Action::SwitchWorkspace(1))
+        );
+    }
+
+    #[test]
+    fn file_manager_navigation_is_translated_when_focused() {
+        assert_eq!(
+            action_for_key(
+                KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                false,
+                false,
+                true
+            ),
+            Some(Action::MoveFileSelection(1))
+        );
+        assert_eq!(
+            action_for_key(
+                KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+                false,
+                false,
+                true
+            ),
+            Some(Action::OpenSelectedEntry)
         );
     }
 

@@ -1,6 +1,10 @@
 use async_trait::async_trait;
 use sysinfo::{ProcessesToUpdate, System};
 
+pub mod filesystem;
+
+pub use filesystem::{LocalFilesystemProvider, default_start_path};
+
 use super::{CapabilityError, ProcessInfo, ProcessProvider, SystemInfoProvider, SystemSnapshot};
 
 #[derive(Debug, Default)]

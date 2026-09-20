@@ -17,4 +17,10 @@ pub enum Action {
     MinimizeWindow,
     ToggleMaximizeWindow,
     SwitchWorkspace(usize),
+    MoveFileSelection(i32),
+    OpenSelectedEntry,
+    FileManagerParent,
+    ToggleFileManagerHidden,
+    ReloadFileManager,
+    SelectFileManagerRow(WindowId, usize),
 }

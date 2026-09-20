@@ -8,8 +8,9 @@ pub fn action_for_key(
     key: KeyEvent,
     launcher_open: bool,
     terminal_focused: bool,
+    file_manager_focused: bool,
 ) -> Option<Action> {
-    keybindings::action_for_key(key, launcher_open, terminal_focused)
+    keybindings::action_for_key(key, launcher_open, terminal_focused, file_manager_focused)
 }
 
 pub fn terminal_input(key: KeyEvent) -> Option<Vec<u8>> {

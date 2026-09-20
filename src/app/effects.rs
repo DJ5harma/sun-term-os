@@ -1,6 +1,11 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use std::path::PathBuf;
+
+use crate::domain::WindowId;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {
     RefreshCapabilities,
-    StartTerminal(crate::domain::WindowId),
-    StopTerminal(crate::domain::WindowId),
+    StartTerminal(WindowId),
+    StopTerminal(WindowId),
+    ReadDirectory(WindowId, PathBuf),
 }

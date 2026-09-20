@@ -16,7 +16,7 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use machine::local::{LocalProcessProvider, LocalSystemInfoProvider};
+use machine::local::{LocalFilesystemProvider, LocalProcessProvider, LocalSystemInfoProvider};
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::sync::Arc;
 
@@ -34,6 +34,7 @@ async fn run() -> Result<()> {
     let app = App::new(
         Arc::new(LocalSystemInfoProvider),
         Arc::new(LocalProcessProvider),
+        Arc::new(LocalFilesystemProvider),
     );
     app.run(&mut terminal).await
 }

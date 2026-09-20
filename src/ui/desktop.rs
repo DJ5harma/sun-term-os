@@ -17,6 +17,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
             "",
             "Press p to launch an application.",
             "Press t for a terminal window.",
+            "Press f for the file manager.",
             "Use 1, 2, or 3 to change workspaces.",
         ];
         frame.render_widget(

@@ -1,6 +1,7 @@
 use crossterm::event::{KeyEvent, MouseEvent};
 
-use crate::machine::{ProcessInfo, SystemSnapshot};
+use crate::domain::WindowId;
+use crate::machine::{DirectoryListing, ProcessInfo, SystemSnapshot};
 
 #[derive(Debug)]
 pub enum Event {
@@ -9,4 +10,5 @@ pub enum Event {
     Tick,
     SystemInfoLoaded(Result<SystemSnapshot, String>),
     ProcessesLoaded(Result<Vec<ProcessInfo>, String>),
+    DirectoryLoaded(WindowId, Result<DirectoryListing, String>),
 }

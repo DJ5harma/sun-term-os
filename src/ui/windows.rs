@@ -23,6 +23,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, window: &Window) 
     frame.render_widget(block, area);
     match window.application {
         ApplicationKind::Terminal => terminal(frame, inner, state, window.id),
+        ApplicationKind::FileManager => {
+            super::file_manager::render(frame, inner, state, window.id);
+        }
         ApplicationKind::SystemInfo => system(frame, inner, state),
         ApplicationKind::Processes => processes(frame, inner, state),
     }

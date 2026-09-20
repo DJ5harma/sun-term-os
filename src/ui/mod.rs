@@ -2,6 +2,7 @@ pub mod geometry;
 
 mod bottom_bar;
 mod desktop;
+pub mod file_manager;
 mod launcher;
 mod theme;
 mod top_bar;

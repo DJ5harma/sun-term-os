@@ -1,8 +1,9 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use crate::{
-    app::AppState,
+    app::{AppState, Loadable},
     domain::{ApplicationKind, WindowId},
+    ui::file_manager,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -15,6 +16,7 @@ pub struct UiGeometry {
     pub launcher_targets: Vec<(ApplicationKind, Rect)>,
     pub workspace_targets: Vec<(usize, Rect)>,
     pub window_targets: Vec<(WindowId, Rect)>,
+    pub file_manager_row_targets: Vec<(WindowId, Vec<(usize, Rect)>)>,
 }
 
 pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
@@ -41,6 +43,7 @@ pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
         .split(root[2]);
     let window_targets = window_targets(bottom[1], state);
     let launcher = centered_rect(64, 62, area);
+    let file_manager_row_targets = file_manager_row_targets(root[1], state);
     UiGeometry {
         top_bar: root[0],
         desktop: root[1],
@@ -50,7 +53,34 @@ pub fn calculate(area: Rect, state: &AppState) -> UiGeometry {
         launcher_targets: launcher_targets(launcher),
         workspace_targets,
         window_targets,
+        file_manager_row_targets,
     }
+}
+
+fn file_manager_row_targets(
+    desktop: Rect,
+    state: &AppState,
+) -> Vec<(WindowId, Vec<(usize, Rect)>)> {
+    let Some(window) = state
+        .focused_window()
+        .filter(|window| window.application == ApplicationKind::FileManager)
+    else {
+        return Vec::new();
+    };
+    let Some(manager) = state.file_manager(window.id) else {
+        return Vec::new();
+    };
+    let entry_count = match &manager.listing {
+        Loadable::Ready(listing) => listing.entries.len(),
+        _ => 0,
+    };
+    let inner = file_manager::inner_content_area(desktop);
+    let layout = file_manager::layout(inner);
+    let rows = file_manager::row_rects(layout.rows_area, entry_count)
+        .into_iter()
+        .enumerate()
+        .collect();
+    vec![(window.id, rows)]
 }
 
 fn launcher_targets(area: Rect) -> Vec<(ApplicationKind, Rect)> {
